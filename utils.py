@@ -105,13 +105,21 @@ def find_disparity(image_left, image_right, display= True, save=True):
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-def crop_disparity_map(disparity_map, locations, display=True):
+def crop_disparity_map(disparity_map, locations, map_type=None,display=True):
 
+    '''
+    map_type=0 means point cloud of only fruit will be generated
+    map_type=1 means fruit shall be represented by a single point
+    '''
     with open(locations,'r') as file:
         csvreader=csv.reader(file)
         map=np.zeros_like(disparity_map)
         for row in csvreader:
-            map[int(row[1]):int(row[3]),int(row[0]):int(row[2])]=255
+            if map_type==1:
+                map[int((int(row[1])+int(row[3]))/2),int((int(row[0])+int(row[2]))/2)]=255
+            
+            elif map_type==0:
+                map[int(row[1]):int(row[3]),int(row[0]):int(row[2])]=255
     
     cropped_disparity_map=cv2.bitwise_and(disparity_map, map)
     if display:
@@ -123,14 +131,23 @@ def crop_disparity_map(disparity_map, locations, display=True):
         cv2.destroyAllWindows()
     return cropped_disparity_map
 
-def obtain_3d_volume(disparity_map,left_image ,fruit_location=None):
+def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=None,single_point=True):
 
     disparity_map=cv2.imread(disparity_map,0)
 
-    if fruit_location:
-        disparity_map=crop_disparity_map(disparity_map,fruit_location, display=False)
-        # import ipdb; ipdb.set_trace()
-    f = open('test_remove_green.ply', 'w')     #opening file to make a ply file
+    '''
+    map_type=0 means point cloud of only fruit will be generated
+    map_type=1 means fruit shall be represented by a single point
+    '''
+    if only_fruit:
+        file_name='only_fruit.ply'
+        disparity_map=crop_disparity_map(disparity_map,locations=fruit_location,map_type=0 ,display=False)
+    
+    elif single_point:
+        file_name='single_point.ply'
+        disparity_map=crop_disparity_map(disparity_map,locations=fruit_location,map_type=1 ,display=False)
+        
+    f = open(file_name, 'w')     #opening file to make a ply file
 
     Kr=np.array([[1052.350202570253, 0.0, 1031.808590719438],
                             [0.0, 1051.888280928595, 771.0661229952285],
@@ -173,20 +190,20 @@ def obtain_3d_volume(disparity_map,left_image ,fruit_location=None):
     output_points = points_3D[mask_map].astype(int)
     output_colors = colors[mask_map].astype(int)     #saving colour of each point
     # import ipdb; ipdb.set_trace()
-    mask_map=output_points[:,2]<1828
-    output_points =output_points[mask_map].astype(int)
-    output_colors = output_colors[mask_map].astype(int)  
+    # mask_map=output_points[:,2]<1828
+    # output_points =output_points[mask_map].astype(int)
+    # output_colors = output_colors[mask_map].astype(int)  
 
-    #Filter for removing leaves
-    # import ipdb;  ipdb.set_trace()
-    color_mask_r=output_colors[:,1]<output_colors[:,0]
-    # color_mask_b=output_colors[:,1]<output_colors[:,2]
-    # color_mask_B=output_colors[:,1]>output_colors[:,2]
-    # import ipdb; ipdb.set_trace()
-    # color_mask=np.logical_or(color_mask_r,color_mask_b)
-    # color_mask=np.logical_or(color_mask_B,color_mask)
-    output_points=output_points[color_mask_r].astype(int)
-    output_colors=output_colors[color_mask_r].astype(int)  
+    # #Filter for removing leaves
+    # # import ipdb;  ipdb.set_trace()
+    # color_mask_r=output_colors[:,1]<output_colors[:,0]
+    # # color_mask_b=output_colors[:,1]<output_colors[:,2]
+    # # color_mask_B=output_colors[:,1]>output_colors[:,2]
+    # # import ipdb; ipdb.set_trace()
+    # # color_mask=np.logical_or(color_mask_r,color_mask_b)
+    # # color_mask=np.logical_or(color_mask_B,color_mask)
+    # output_points=output_points[color_mask_r].astype(int)
+    # output_colors=output_colors[color_mask_r].astype(int)  
 
     print(output_points.shape) #[0] of output gives number of vertices
 
@@ -235,57 +252,6 @@ def display_inlier_outlier(cloud, ind):
                                       front=[0.4257, -0.2125, -0.8795],
                                       lookat=[2.6172, 2.0475, 1.532],
                                       up=[-0.0694, -0.9768, 0.2024])
-
-def clean_point_cloud_points(file_path, csv_file,display=False,save=False):
-
-    # import ipdb; ipdb.set_trace()
-    point_cloud=od.io.read_point_cloud(file_path)
-    cl,ind=point_cloud.remove_radius_outlier(nb_points=50,radius=10)
-    inlier_cloud = point_cloud.select_by_index(ind)
-    numpy_inliner_cloud=np.asarray(inlier_cloud.points)
-
-    fruit_loc=list()
-
-    f = open('test_remove_green.ply', 'w')
-
-    a = '''ply
-    format ascii 1.0
-    comment - Made for Apple Tracking
-    comment - This file represents a cube's corner vertices
-    element vertex ''' + str(len())+\
-    '''
-    property float32 x
-    property float32 y
-    property float32 z
-    property uint8 red
-    property uint8 green
-    property uint8 blue
-    end_header
-    '''
-    #writing ply file
-    f.write(a)
-
-    with open(csv_file) as csvfile:
-        spamreader=csv.reader(csvfile)
-        for row in spamreader:
-            # import ipdb;ipdb.set_trace()
-            x_filter=np.bitwise_and(np.asarray(numpy_inliner_cloud[:,0],int)>=int(row[0]), np.asarray(numpy_inliner_cloud[:,0],int)<=int(row[2]))
-            rem_pc=numpy_inliner_cloud[x_filter]
-            import ipdb; ipdb.set_trace()
-            y_filter=np.bitwise_and(rem_pc[:,1]>=int(row[1]), rem_pc[:,1]<=int(row[3]))
-            rem_pc=rem_pc[y_filter].mean(axis=0)
-            
-        
-    if display:
-        display_inlier_outlier(point_cloud, ind)
-    
-    if save:
-        # o3d.io.write_point_cloud('cleaned_test.ply',inlier_cloud)
-        o3d.io.write_point_cloud('single_point.ply',inlier_cloud)
-
-    # import ipdb; ipdb.set_trace()
-
-# def image_correction():
 
 def image_shift(imgr_path,imgl_path, display=True, save= True):
 
@@ -360,12 +326,13 @@ if __name__=='__main__':
 
     # match_hist('AAA_4420.png','R0058.jpeg')
     # find_disparity('./Disparity/L0058.jpeg','./Disparity/R0058.jpeg')
-    # obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' ,'./Disparity/L0058.csv')
+    # obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' )
+    obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' ,'./Disparity/L0058.csv')
     # crop_disparity_map('./Disparity/Output.png','./Disparity/L0058.csv')
     # clahe_('./L0058.jpeg')
     # make_video_from_frames('./deep_sort/Implementation 2/Tests/*.png')
     # draw_boxes('./Disparity/L0058.jpeg','./Disparity/L0058.csv')
-    clean_point_cloud_points('./test_remove_green.ply','./Disparity/L0058.csv')
+    # clean_point_cloud_points('./single_point.ply','./Disparity/L0058.csv')
     Kr=np.array([[1052.350202570253, 0.0, 1031.808590719438],
                             [0.0, 1051.888280928595, 771.0661229952285],
                             [0.0, 0.0, 1.0]]) #Intrinsic parameter to convert camera frame to image frame)
