@@ -8,6 +8,7 @@ from tqdm import tqdm
 import open3d as od
 import csv
 import open3d as o3d
+from Disparity import demo
 
 # from Disparity import demo
 
@@ -104,6 +105,18 @@ def find_disparity(image_left, image_right, display= True, save=True):
         cv2.imwrite("./DisparityImage.png",disparity)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+
+def find_disparity_RAFT(imgl,imgr,display=True):
+    
+    disparity=demo.main(imgl,imgr)
+    disparity=np.asarray(disparity,np.uint8)
+
+    if display:
+        cv2.namedWindow('Disparity Image', cv2.WINDOW_NORMAL)
+        cv2.imshow('Disparity Image', disparity)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    
 
 def crop_disparity_map(disparity_map, locations, map_type=None,display=True):
 
@@ -253,6 +266,54 @@ def display_inlier_outlier(cloud, ind):
                                       lookat=[2.6172, 2.0475, 1.532],
                                       up=[-0.0694, -0.9768, 0.2024])
 
+def clean_point_cloud_points(file_path, csv_file,display=False,save=False):
+
+    # import ipdb; ipdb.set_trace()
+    point_cloud=od.io.read_point_cloud(file_path)
+    cl,ind=point_cloud.remove_radius_outlier(nb_points=50,radius=10)
+    inlier_cloud = point_cloud.select_by_index(ind)
+    numpy_inliner_cloud=np.asarray(inlier_cloud.points)
+
+    fruit_loc=list()
+
+    f = open('test_remove_green.ply', 'w')
+
+    a = '''ply
+    format ascii 1.0
+    comment - Made for Apple Tracking
+    comment - This file represents a cube's corner vertices
+    element vertex ''' + str(len())+\
+    '''
+    property float32 x
+    property float32 y
+    property float32 z
+    property uint8 red
+    property uint8 green
+    property uint8 blue
+    end_header
+    '''
+    #writing ply file
+    f.write(a)
+
+    with open(csv_file) as csvfile:
+        spamreader=csv.reader(csvfile)
+        for row in spamreader:
+            # import ipdb;ipdb.set_trace()
+            x_filter=np.bitwise_and(np.asarray(numpy_inliner_cloud[:,0],int)>=int(row[0]), np.asarray(numpy_inliner_cloud[:,0],int)<=int(row[2]))
+            rem_pc=numpy_inliner_cloud[x_filter]
+            import ipdb; ipdb.set_trace()
+            y_filter=np.bitwise_and(rem_pc[:,1]>=int(row[1]), rem_pc[:,1]<=int(row[3]))
+            rem_pc=rem_pc[y_filter].mean(axis=0)
+            
+        
+    if display:
+        display_inlier_outlier(point_cloud, ind)
+    
+    if save:
+        # o3d.io.write_point_cloud('cleaned_test.ply',inlier_cloud)
+        o3d.io.write_point_cloud('single_point.ply',inlier_cloud)
+
+
 def image_shift(imgr_path,imgl_path, display=True, save= True):
 
     imgr=cv2.imread(imgr_path)
@@ -327,12 +388,13 @@ if __name__=='__main__':
     # match_hist('AAA_4420.png','R0058.jpeg')
     # find_disparity('./Disparity/L0058.jpeg','./Disparity/R0058.jpeg')
     # obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' )
-    obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' ,'./Disparity/L0058.csv')
+    # obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' ,'./Disparity/L0058.csv')
     # crop_disparity_map('./Disparity/Output.png','./Disparity/L0058.csv')
     # clahe_('./L0058.jpeg')
     # make_video_from_frames('./deep_sort/Implementation 2/Tests/*.png')
     # draw_boxes('./Disparity/L0058.jpeg','./Disparity/L0058.csv')
     # clean_point_cloud_points('./single_point.ply','./Disparity/L0058.csv')
+    find_disparity_RAFT(cv2.imread('./Disparity/L0058.jpeg',1),cv2.imread('./Disparity/R0058.jpeg',1))
     Kr=np.array([[1052.350202570253, 0.0, 1031.808590719438],
                             [0.0, 1051.888280928595, 771.0661229952285],
                             [0.0, 0.0, 1.0]]) #Intrinsic parameter to convert camera frame to image frame)
