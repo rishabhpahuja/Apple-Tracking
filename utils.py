@@ -8,6 +8,7 @@ from tqdm import tqdm
 import open3d as od
 import csv
 import open3d as o3d
+from Disparity import demo
 
 # from Disparity import demo
 
@@ -104,6 +105,18 @@ def find_disparity(image_left, image_right, display= True, save=True):
         cv2.imwrite("./DisparityImage.png",disparity)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+
+def find_disparity_RAFT(imgl,imgr,display=True):
+    
+    disparity=demo.main(imgl,imgr)
+    disparity=np.asarray(disparity,np.uint8)
+
+    if display:
+        cv2.namedWindow('Disparity Image', cv2.WINDOW_NORMAL)
+        cv2.imshow('Disparity Image', disparity)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    
 
 def crop_disparity_map(disparity_map, locations, map_type=None,display=True):
 
@@ -327,12 +340,13 @@ if __name__=='__main__':
     # match_hist('AAA_4420.png','R0058.jpeg')
     # find_disparity('./Disparity/L0058.jpeg','./Disparity/R0058.jpeg')
     # obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' )
-    obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' ,'./Disparity/L0058.csv')
+    # obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' ,'./Disparity/L0058.csv')
     # crop_disparity_map('./Disparity/Output.png','./Disparity/L0058.csv')
     # clahe_('./L0058.jpeg')
     # make_video_from_frames('./deep_sort/Implementation 2/Tests/*.png')
     # draw_boxes('./Disparity/L0058.jpeg','./Disparity/L0058.csv')
     # clean_point_cloud_points('./single_point.ply','./Disparity/L0058.csv')
+    find_disparity_RAFT(cv2.imread('./Disparity/L0058.jpeg',1),cv2.imread('./Disparity/R0058.jpeg',1))
     Kr=np.array([[1052.350202570253, 0.0, 1031.808590719438],
                             [0.0, 1051.888280928595, 771.0661229952285],
                             [0.0, 0.0, 1.0]]) #Intrinsic parameter to convert camera frame to image frame)
