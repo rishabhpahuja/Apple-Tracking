@@ -1,14 +1,14 @@
 import sys
-sys.path.append('core')
-
+import os
+sys.path.append(os.getcwd()+'/Disparity')
+# import ipdb;ipdb.set_trace()
 import argparse
 import glob
 import numpy as np
 import torch
 from tqdm import tqdm
-from pathlib import Path
-from raft_stereo import RAFTStereo
-from utils.utils import InputPadder
+from core.raft_stereo import RAFTStereo
+from core.utils.utils import InputPadder
 from PIL import Image
 from matplotlib import pyplot as plt
 import cv2
@@ -22,6 +22,7 @@ def load_image(imfile):
     return img[None].to(DEVICE)
 
 def demo(args):
+    os.chdir('./Disparity')
     model = torch.nn.DataParallel(RAFTStereo(args), device_ids=[0])
     model.load_state_dict(torch.load(args.restore_ckpt))
 
@@ -33,41 +34,43 @@ def demo(args):
     # output_directory.mkdir(exist_ok=True)
 
     with torch.no_grad():
-        left_images = sorted(glob.glob(args.left_imgs, recursive=True))
-        right_images = sorted(glob.glob(args.right_imgs, recursive=True))
+        # left_images = sorted(glob.glob(args.left_imgs, recursive=True))
+        # right_images = sorted(glob.glob(args.right_imgs, recursive=True))
         # print(f"Found {len(left_images)} images. Saving files to {output_directory}/")
 
-        for (imfile1, imfile2) in tqdm(list(zip(left_images, right_images))):
-            image1 = load_image(imfile1)
-            image2 = load_image(imfile2)
+        # for (imfile1, imfile2) in tqdm(list(zip(left_images, right_images))):
+        image1 = args.left_imgs
+        image2 = args.right_imgs
 
-            padder = InputPadder(image1.shape, divis_by=1)
-            image1, image2 = padder.pad(image1, image2)
+        padder = InputPadder(image1.shape, divis_by=1)
+        image1, image2 = padder.pad(image1, image2)
 
-            _, flow_up = model(image1, image2, iters=args.valid_iters, test_mode=True)
-            # file_stem = imfile1.split('/')[-2]
-            # if args.save_numpy:
-            #     np.save(output_directory / f"{file_stem}.npy", flow_up.cpu().numpy().squeeze())
-            # import ipdb; ipdb.set_trace()
-            # cv2.namedWindow('Output',cv2.WINDOW_NORMAL)
-            cv2.imwrite('Output.png',(flow_up.squeeze().cpu().numpy())*-1)
-            cv2.namedWindow('Disparity',cv2.WINDOW_GUI_NORMAL)
-            cv2.namedWindow('Left Image',cv2.WINDOW_GUI_NORMAL)
-            cv2.namedWindow('Right Image',cv2.WINDOW_GUI_NORMAL)
-            cv2.imshow('Disparity',(np.asarray(flow_up.squeeze().cpu().numpy(),np.uint8)))
-            cv2.imshow('Left Image',cv2.imread(imfile1))
-            cv2.imshow('Right Image',cv2.imread(imfile2))
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+        import time
+        start=time.time()
+        _, flow_up = model(image1, image2, iters=args.valid_iters, test_mode=True)
+        end=time.time()
+        print(start-end)
+        # file_stem = imfile1.split('/')[-2]
+        # if args.save_numpy:
+        #     np.save(output_directory / f"{file_stem}.npy", flow_up.cpu().numpy().squeeze())
+        # import ipdb; ipdb.set_trace()
+        # cv2.namedWindow('Output',cv2.WINDOW_NORMAL)
+        cv2.imwrite('Output.png',(flow_up.squeeze().cpu().numpy())*-1)
+        return((flow_up.squeeze().cpu().numpy())*-1)
+        cv2.imshow('Disparity',(np.asarray(flow_up.squeeze().cpu().numpy(),np.uint8)))
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
             # plt.imsave(output_directory / f"{file_stem}.png", -flow_up.cpu().numpy().squeeze(), cmap='jet')
 
 
-if __name__ == '__main__':
+def main(imgl,imgr):
+    imgl = torch.from_numpy(imgl.copy()).permute(2, 0, 1).float()[None].to(DEVICE)
+    imgr = torch.from_numpy(imgr.copy()).permute(2, 0, 1).float()[None].to(DEVICE)
     parser = argparse.ArgumentParser()
     parser.add_argument('--restore_ckpt',default='./raftstereo-middlebury.pth' ,help="restore checkpoint")
     parser.add_argument('--save_numpy', action='store_true', help='save output as numpy arrays')
-    parser.add_argument('-l', '--left_imgs', help="path to all first (left) frames", default="./L0058.jpeg")
-    parser.add_argument('-r', '--right_imgs', help="path to all second (right) frames", default="./R0058.jpeg")
+    parser.add_argument('-l', '--left_imgs', help="path to all first (left) frames", default=imgl)
+    parser.add_argument('-r', '--right_imgs', help="path to all second (right) frames", default=imgr)
     parser.add_argument('--output_directory', help="directory to save output", default="./test")
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--valid_iters', type=int, default=32, help='number of flow-field updates during forward pass')
@@ -84,4 +87,5 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
 
-    demo(args)
+    disparity=demo(args)
+    return disparity
