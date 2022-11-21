@@ -118,7 +118,7 @@ def find_disparity_RAFT(imgl,imgr,display=True):
         cv2.destroyAllWindows()
     
 
-def crop_disparity_map(disparity_map, locations, map_type=None,display=True):
+def crop_disparity_map(disparity_map, locations, map_type=None,display=True,save=True):
 
     '''
     map_type=0 means point cloud of only fruit will be generated
@@ -142,6 +142,9 @@ def crop_disparity_map(disparity_map, locations, map_type=None,display=True):
         cv2.imshow('Orignal_disparity',disparity_map)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+    if save:
+        # import ipdb; ipdb.set_trace()
+        cv2.imwrite('Cropped_disparity_map.png',cropped_disparity_map)
     return cropped_disparity_map
 
 def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=None,single_point=True):
@@ -392,9 +395,10 @@ if __name__=='__main__':
     # crop_disparity_map('./Disparity/Output.png','./Disparity/L0058.csv')
     # clahe_('./L0058.jpeg')
     # make_video_from_frames('./deep_sort/Implementation 2/Tests/*.png')
-    # draw_boxes('./Disparity/L0058.jpeg','./Disparity/L0058.csv')
+    draw_boxes('Cropped_disparity_map.png','./Disparity/L0058.csv')
+    # crop_disparity_map(cv2.imread('Output.png',1),'./Disparity/L0058.csv', map_type=1)
     # clean_point_cloud_points('./single_point.ply','./Disparity/L0058.csv')
-    find_disparity_RAFT(cv2.imread('./Disparity/L0058.jpeg',1),cv2.imread('./Disparity/R0058.jpeg',1))
+    # find_disparity_RAFT(cv2.imread('./Disparity/L0058.jpeg',1),cv2.imread('./Disparity/R0058.jpeg',1))
     Kr=np.array([[1052.350202570253, 0.0, 1031.808590719438],
                             [0.0, 1051.888280928595, 771.0661229952285],
                             [0.0, 0.0, 1.0]]) #Intrinsic parameter to convert camera frame to image frame)
