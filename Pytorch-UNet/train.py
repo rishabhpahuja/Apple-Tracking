@@ -65,11 +65,12 @@ def train_net(net, device, epochs, batch_size, learning_rate, val_percent,
     global_step = int(n_train/batch_size)
 
     # 5. Begin training
+    best_score=0
     for epoch in range(1, epochs+1):
         net.train()
         epoch_loss = 0
         with tqdm(total=int(n_train/batch_size), desc=f'Epoch {epoch}/{epochs}', unit='img') as pbar:
-            for batch in train_loader:
+            for i,batch in enumerate(train_loader):
                 images = batch['image']
                 true_masks = batch['mask']
 
@@ -109,40 +110,41 @@ def train_net(net, device, epochs, batch_size, learning_rate, val_percent,
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
 
                 # Evaluation round
-                division_step = (n_train // (10 * batch_size))
-                division_step=
-                if division_step > 0:
-                    if global_step % division_step == 0:
-                        if WANDB:
-                            histograms = {}
-                            for tag, value in net.named_parameters():
-                                tag = tag.replace('/', '.')
-                                if not torch.isinf(value).any():
-                                    histograms['Weights/' + tag] = wandb.Histogram(value.data.cpu())
-                                if not torch.isinf(value.grad).any():
-                                    histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
+                
+                if i==int(n_train/batch_size) > 0:
+                    
+                    if WANDB:
+                        histograms = {}
+                        for tag, value in net.named_parameters():
+                            tag = tag.replace('/', '.')
+                            if not torch.isinf(value).any():
+                                histograms['Weights/' + tag] = wandb.Histogram(value.data.cpu())
+                            if not torch.isinf(value.grad).any():
+                                histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
 
-                        val_score = evaluate(net, val_loader, device)
-                        scheduler.step(val_score)
+                    val_score = evaluate(net, val_loader, device)
+                    scheduler.step(val_score)
 
-                        logging.info('Validation Dice score: {}'.format(val_score))
-                        if WANDB:
-                            experiment.log({
-                            'learning rate': optimizer.param_groups[0]['lr'],
-                            'validation Dice': val_score,
-                            'images': wandb.Image(images[0].cpu()),
-                            'masks': {
-                                'true': wandb.Image(true_masks[0].float().cpu()),
-                                'pred': wandb.Image(masks_pred.argmax(dim=1)[0].float().cpu()),
-                            },
-                            'step': global_step,
-                            'epoch': epoch,
-                            **histograms
-                        })
+                    logging.info('Validation Dice score: {}'.format(val_score))
+                    if WANDB:
+                        experiment.log({
+                        'learning rate': optimizer.param_groups[0]['lr'],
+                        'validation Dice': val_score,
+                        'images': wandb.Image(images[0].cpu()),
+                        'masks': {
+                            'true': wandb.Image(true_masks[0].float().cpu()),
+                            'pred': wandb.Image(masks_pred.argmax(dim=1)[0].float().cpu()),
+                        },
+                        'step': global_step,
+                        'epoch': epoch,
+                        **histograms
+                    })
 
         if save_checkpoint:
-            torch.save(net.state_dict(), dir_checkpoint + '/checkpoint_epoch{}.pth'.format(str(epoch)))
-            logging.info(f'Checkpoint {epoch} saved!')
+            if val_score>=best_score:
+                best_score=val_score
+                torch.save(net.state_dict(), dir_checkpoint + '/checkpoint_epoch{}.pth'.format(str(epoch)))
+                logging.info(f'Checkpoint {epoch} saved!')
 
 
 def get_args():
