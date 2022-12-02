@@ -83,7 +83,7 @@ if __name__ == '__main__':
 
     net = UNet(n_channels=3, n_classes=2, bilinear=args.bilinear)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Loading model {args.model}')
     logging.info(f'Using device {device}')
 

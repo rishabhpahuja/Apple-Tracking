@@ -1,7 +1,6 @@
 import logging
-from os import listdir
+import os
 from os.path import splitext
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -10,15 +9,15 @@ from torch.utils.data import Dataset
 
 
 class BasicDataset(Dataset):
-    def __init__(self, images_dir: str, masks_dir: str, scale: float = 1.0, mask_suffix: str = ''):
-        self.images_dir = Path(images_dir)
-        self.masks_dir = Path(masks_dir)
+    def __init__(self, images_dir: str, masks_dir: str, scale: float = 1.0):
+        self.images_path = images_dir
+        self.masks_path = masks_dir
+        # import ipdb;ipdb.set_trace()
         assert 0 < scale <= 1, 'Scale must be between 0 and 1'
         self.scale = scale
-        self.mask_suffix = mask_suffix
+        self.ids=os.listdir(self.images_path)
 
-        self.ids = [splitext(file)[0] for file in listdir(images_dir) if not file.startswith('.')]
-        if not self.ids:
+        if len(self.ids)==0:
             raise RuntimeError(f'No input file found in {images_dir}, make sure you put your images there')
         logging.info(f'Creating dataset with {len(self.ids)} examples')
 
@@ -39,7 +38,7 @@ class BasicDataset(Dataset):
             else:
                 img_ndarray = img_ndarray.transpose((2, 0, 1))
 
-            img_ndarray = img_ndarray / 255
+        img_ndarray = img_ndarray / 255
 
         return img_ndarray
 
@@ -55,13 +54,11 @@ class BasicDataset(Dataset):
 
     def __getitem__(self, idx):
         name = self.ids[idx]
-        mask_file = list(self.masks_dir.glob(name + self.mask_suffix + '.*'))
-        img_file = list(self.images_dir.glob(name + '.*'))
+        mask_file = self.masks_path+name
+        img_file = self.images_path+name
 
-        assert len(img_file) == 1, f'Either no image or multiple images found for the ID {name}: {img_file}'
-        assert len(mask_file) == 1, f'Either no mask or multiple masks found for the ID {name}: {mask_file}'
-        mask = self.load(mask_file[0])
-        img = self.load(img_file[0])
+        mask = self.load(mask_file)
+        img = self.load(img_file)
 
         assert img.size == mask.size, \
             f'Image and mask {name} should be the same size, but are {img.size} and {mask.size}'
@@ -77,4 +74,4 @@ class BasicDataset(Dataset):
 
 class CarvanaDataset(BasicDataset):
     def __init__(self, images_dir, masks_dir, scale=1):
-        super().__init__(images_dir, masks_dir, scale, mask_suffix='_mask')
+        super().__init__(images_dir, masks_dir, scale)
