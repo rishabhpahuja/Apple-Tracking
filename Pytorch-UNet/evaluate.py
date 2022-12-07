@@ -33,10 +33,7 @@ def evaluate(net, dataloader, device):
                 dice_score += multiclass_dice_coeff(mask_pred[:, 1:, ...], mask_true[:, 1:, ...], reduce_batch_first=False)
 
            
-
-    net.train()
-
-    # Fixes a potential division by zero error
+   # Fixes a potential division by zero error
     if num_val_batches == 0:
         return dice_score
     return dice_score / num_val_batches
