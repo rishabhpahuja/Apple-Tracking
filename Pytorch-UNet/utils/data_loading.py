@@ -6,16 +6,30 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import transforms
 
 
 class BasicDataset(Dataset):
-    def __init__(self, images_dir: str, masks_dir: str, scale: float = 1.0):
+    def __init__(self, images_dir: str,masks_dir: str, scale: float = 1.0,dataset =None):
         self.images_path = images_dir
         self.masks_path = masks_dir
         # import ipdb;ipdb.set_trace()
         assert 0 < scale <= 1, 'Scale must be between 0 and 1'
         self.scale = scale
         self.ids=os.listdir(self.images_path)
+        self.transforms_image=transforms.Compose([
+                                                    # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+                                                    transforms.ToPILImage(),
+                                                    # transforms.ColorJitter(),
+                                                    # transforms.RandomGrayscale(p=0.1),
+                                                    # transforms.RandomInvert(p=0.1),
+                                                    # transforms.RandomAdjustSharpness(sharpness_factor=2,p=0.5),
+                                                    # transforms.RandomAutocontrast(p=0.5),
+                                                    # transforms.RandomEqualize(p=0.5),                                                    
+                                                    transforms.ToTensor()
+                                                ]
+                                                    )
+        self.dataset=dataset
 
         if len(self.ids)==0:
             raise RuntimeError(f'No input file found in {images_dir}, make sure you put your images there')
@@ -63,12 +77,15 @@ class BasicDataset(Dataset):
         assert img.size == mask.size, \
             f'Image and mask {name} should be the same size, but are {img.size} and {mask.size}'
 
-        img = self.preprocess(img, self.scale, is_mask=False)
-        mask = self.preprocess(mask, self.scale, is_mask=True)
+        img = torch.as_tensor(self.preprocess(img, self.scale, is_mask=False).copy()).float().contiguous()
+        mask = torch.as_tensor(self.preprocess(mask, self.scale, is_mask=True).copy()).long().contiguous()
+
+        if self.dataset=='train':
+            img=self.transforms_image(img)
 
         return {
-            'image': torch.as_tensor(img.copy()).float().contiguous(),
-            'mask': torch.as_tensor(mask.copy()).long().contiguous()
+            'image': img,
+            'mask': mask
         }
 
 

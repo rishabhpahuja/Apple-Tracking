@@ -17,28 +17,32 @@ from utils.data_loading import BasicDataset, CarvanaDataset
 from utils.dice_score import dice_loss
 from evaluate import evaluate
 from unet import UNet
+from utils.dice_score import multiclass_dice_coeff, dice_coeff
 
-dir_img = './data/RGB/'
-dir_mask = './data/Masks/'
+dir_img_train = './data/train/RGB/'
+dir_mask_train = './data/train/Masks/'
+dir_img_val= './data/eval/RGB/'
+dir_mask_val= './data/eval/Masks/'
 dir_checkpoint = './checkpoints/'
 
 
 def train_net(net, device, epochs, batch_size, learning_rate, val_percent, 
-            save_checkpoint, img_scale, amp,WANDB=True,display_data=False):
+            save_checkpoint, img_scale, amp,WANDB=True,display_data=True):
 
     # 1. Create dataset
-    dataset = BasicDataset(dir_img, dir_mask, img_scale)
+    dataset_train = BasicDataset(dir_img_train, dir_mask_train, img_scale,dataset='train')
+    dataset_eval = BasicDataset(dir_img_val, dir_mask_val, img_scale)
 
     # 2. Split into train / validation partitions
-    n_val = int(len(dataset) * val_percent)
-    # import ipdb; ipdb.set_trace()
-    n_train = len(dataset) - n_val
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
+    # n_val = int(len(dataset) * val_percent)
+    # # import ipdb; ipdb.set_trace()
+    # n_train = len(dataset) - n_val
+    # train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
 
     # 3. Create data loaders
-    loader_args = dict(batch_size=batch_size, num_workers=4, pin_memory=True)
-    train_loader = DataLoader(train_set, shuffle=True, **loader_args)
-    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
+    loader_args = dict(batch_size=batch_size, pin_memory=True)
+    train_loader = DataLoader(dataset_train, shuffle=True, **loader_args)
+    val_loader = DataLoader(dataset_eval, shuffle=False, drop_last=True, **loader_args)
 
     # (Initialize logging)
     if WANDB:
@@ -51,8 +55,8 @@ def train_net(net, device, epochs, batch_size, learning_rate, val_percent,
         Epochs:          {epochs}
         Batch size:      {batch_size}
         Learning rate:   {learning_rate}
-        Training size:   {n_train}
-        Validation size: {n_val}
+        Training size:   {len(dataset_train)}
+        Validation size: {len(dataset_eval)}
         Checkpoints:     {save_checkpoint}
         Device:          {device.type}
         Images scaling:  {img_scale}
@@ -65,30 +69,29 @@ def train_net(net, device, epochs, batch_size, learning_rate, val_percent,
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     # criterion = nn.CrossEntropyLoss()
     # criterion = nn.functional.cross_entropy()
-    global_step = int(n_train/batch_size)
+    # global_step = int(n_train/batch_size)
 
     # 5. Begin training
     best_score=0
 
     if display_data:
 
-        for i,batch in enumerate(train_loader):
+        for batch in (train_loader):
             image=batch['image']
             true_mask=batch['mask'].unsqueeze(1)
             grid_img= torchvision.utils.make_grid(image, nrow=5)
             grid_mask= torchvision.utils.make_grid(true_mask, nrow=5)
-            mask_image=torch.concatenate((grid_img,grid_mask),axis=1)
+            mask_image=torch.cat((grid_img,grid_mask),axis=1)
             plt.imshow(mask_image.permute(1, 2, 0))
             # plt.imshow(grid_mask.permute(1,2,0))
             plt.show()
             break
 
-
     for epoch in range(1, epochs+1):
         net.train()
         epoch_loss = 0
-        with tqdm(total=int(n_train/batch_size), desc=f'Epoch {epoch}/{epochs}', unit='img') as pbar:
-            for i,batch in enumerate(train_loader):
+        with tqdm(train_loader,unit='batch',desc='Train Epoch:'+str(epoch)) as pbar:
+            for batch in pbar:
                 images = batch['image']
                 true_masks = batch['mask']
 
@@ -102,64 +105,33 @@ def train_net(net, device, epochs, batch_size, learning_rate, val_percent,
 
                 with torch.cuda.amp.autocast(enabled=amp):
                     masks_pred = net(images)
-                    # import ipdb;ipdb.set_trace()
-                    # dice_loss(F.softmax(masks_pred, dim=1).float(),
-                    #                    F.one_hot(true_masks, net.n_classes).permute(0, 3, 1, 2).float(),
-                    #                    multiclass=True)
-                    # loss = criterion(masks_pred, true_masks) \
-                    loss=nn.functional.cross_entropy(masks_pred,true_masks)
-                        #    + dice_loss(F.softmax(masks_pred, dim=1).float(),
-                        #                F.one_hot(true_masks, net.n_classes).permute(0, 3, 1, 2).float(),
-                        #                multiclass=True)
+                    loss=nn.functional.cross_entropy(masks_pred,true_masks)\
+                           + dice_loss(F.softmax(masks_pred, dim=1).float(),
+                                       F.one_hot(true_masks, net.n_classes).permute(0, 3, 1, 2).float(),
+                                       multiclass=True)
 
                 optimizer.zero_grad(set_to_none=True)
                 grad_scaler.scale(loss).backward()
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
 
-                pbar.update(images.shape[0])
-                global_step += 1
+                # pbar.update(images.shape[0])
+                
                 epoch_loss += loss.item()
                 if WANDB:
                     experiment.log({
-                    'train loss': loss.item(),
-                    'step': global_step,
+                    'train loss': loss.item(),                    
                     'epoch': epoch
                 })
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
 
-                # Evaluation round
-                
-                if (epoch%batch_size) == 0:
-                    
-                    if WANDB:
-                        histograms = {}
-                        for tag, value in net.named_parameters():
-                            tag = tag.replace('/', '.')
-                            if not torch.isinf(value).any():
-                                histograms['Weights/' + tag] = wandb.Histogram(value.data.cpu())
-                            if not torch.isinf(value.grad).any():
-                                histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
-
+            # Evaluation round
             val_score = evaluate(net, val_loader, device)
             # print("Validation Score:",val_score)
             scheduler.step(val_score)
 
             logging.info('Validation Dice score: {}'.format(val_score))
-                    # if WANDB:
-                    #     experiment.log({
-                    #     'learning rate': optimizer.param_groups[0]['lr'],
-                    #     'validation Dice': val_score,
-                    #     'images': wandb.Image(images[0].cpu()),
-                    #     'masks': {
-                    #         'true': wandb.Image(true_masks[0].float().cpu()),
-                    #         'pred': wandb.Image(masks_pred.argmax(dim=1)[0].float().cpu()),
-                    #     },
-                    #     'step': global_step,
-                    #     'epoch': epoch,
-                    #     **histograms
-                    # })
-
+    
             if save_checkpoint:
                 if val_score>=best_score:
                     best_score=val_score
@@ -169,12 +141,12 @@ def train_net(net, device, epochs, batch_size, learning_rate, val_percent,
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
-    parser.add_argument('--epochs', '-e', metavar='E', type=int, default=15, help='Number of epochs')
+    parser.add_argument('--epochs', '-e', metavar='E', type=int, default=30, help='Number of epochs')
     parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int, default=3, help='Batch size')
     parser.add_argument('--learning-rate', '-l', metavar='LR', type=float, default=1e-5,
                         help='Learning rate', dest='lr')
     parser.add_argument('--load', '-f', type=str, default=False, help='Load model from a .pth file')
-    parser.add_argument('--scale', '-s', type=float, default=0.2, help='Downscaling factor of the images')
+    parser.add_argument('--scale', '-s', type=float, default=0.4, help='Downscaling factor of the images')
     parser.add_argument('--validation', '-v', dest='val', type=float, default=20.0,
                         help='Percent of the data that is used as validation (0-100)')
     parser.add_argument('--amp', action='store_true', default=False, help='Use mixed precision')
@@ -206,6 +178,7 @@ if __name__ == '__main__':
         net.load_state_dict(torch.load(args.load, map_location=device))
         logging.info(f'Model loaded from {args.load}')
 
+    # net=torch.nn.DataParallel(net)
     net.to(device=device)
     try:
         train_net(net=net,
