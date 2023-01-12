@@ -5,12 +5,9 @@ from skimage import exposure
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
-import open3d as od
+# import open3d as od
 import csv
 import open3d as o3d
-from Disparity import demo
-
-# from Disparity import demo
 
 def make_video_from_frames(path, Iframe=0, Fframe=100,REF=False):
 
@@ -53,7 +50,7 @@ def clahe_(img_path, display=True, save=True): #Histogram equalization to distri
     if save:
         cv2.imwrite(img_path.split('/'),equalized)
 
-def match_hist(ref_img_path, img_path, display=True, save=True):
+def match_hist(ref_img_path, img_path, display=False, save=True):
 
     ref_img= cv2.imread(ref_img_path,1)
     img=cv2.imread(img_path,1)
@@ -118,7 +115,7 @@ def find_disparity_RAFT(imgl,imgr,display=True):
         cv2.destroyAllWindows()
     
 
-def crop_disparity_map(disparity_map, locations, map_type=None,display=True,save=True):
+def crop_disparity_map(disparity_map, locations, map_type=0,display=True,save=False):
 
     '''
     map_type=0 means point cloud of only fruit will be generated
@@ -127,6 +124,7 @@ def crop_disparity_map(disparity_map, locations, map_type=None,display=True,save
     with open(locations,'r') as file:
         csvreader=csv.reader(file)
         map=np.zeros_like(disparity_map)
+        # import ipdb; ipdb.set_trace()
         for row in csvreader:
             if map_type==1:
                 map[int((int(row[1])+int(row[3]))/2),int((int(row[0])+int(row[2]))/2)]=255
@@ -147,16 +145,34 @@ def crop_disparity_map(disparity_map, locations, map_type=None,display=True,save
         cv2.imwrite('Cropped_disparity_map.png',cropped_disparity_map)
     return cropped_disparity_map
 
-def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=None,single_point=True):
+def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=None,single_point=False):
 
     disparity_map=cv2.imread(disparity_map,0)
 
     '''
     map_type=0 means point cloud of only fruit will be generated
     map_type=1 means fruit shall be represented by a single point
+    
+    K: Intrinsic camera matrix for raw distorted images. Projects 3D points in the camera coordinate frame to 2D pixel coordinates
+    using focal lengths and principal point
+    K=[[fx 0 cs]
+        [0 fy cy]
+        [0  0  1]]
+
+    R: Rectification matrix (stereo cameras only). A rotation matrix aligning camera coordinate system to the ideal stereo image 
+    plane so that epipolar lines in both stereo images are parallel.
+
+    P: By convention, this matrix specifies the intrinsic (camera) matrix of the processed (rectified) image. That is, the left 3x3 portion
+    is the normal camera intrinsic matrix for the rectified image. It projects 3D points in the camera coordinate frame to 2D pixel
+    coordinates using the focal lengths (fx', fy') and principal point (cx', cy') - these may differ from the values in K.
+        [fx'  0  cx' Tx]
+    P = [ 0  fy' cy' Ty]
+        [ 0   0   1   0]
+    the fourth column [Tx Ty 0]' is related to the position of the optical center of the second camera in the first camera's frame
+    Tx = -fx' * B, where B is the baseline between the cameras
     '''
     if only_fruit:
-        file_name='only_fruit.ply'
+        file_name='only_fruit_85.ply'
         disparity_map=crop_disparity_map(disparity_map,locations=fruit_location,map_type=0 ,display=False)
     
     elif single_point:
@@ -171,9 +187,10 @@ def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=N
     
     Rr= np.array([[0.9996990506423458, 0.002517310775589418, 0.02440228045187234],\
                     [-0.002557834410859948, 0.9999954009677927, 0.001629578592843086],\
-                    [-0.02439806606924718, -0.001691505164855578, 0.9997008918583387]])
+                    [-0.02439806606924718, -0.001691505164855578, 0.9997008918583387]]) 
     
     Dr= np.array([-0.03098864107712216, 0.04051128735759788, -0.001361885214239114, -0.0008816601680637922, 0.0]) #Distortion matrix
+    Pr=np.array([1142.280571388607, 0.0, 988.5422821044922, 0.0, 0.0, 1142.280571388607, 782.6398086547852, 0.0, 0.0, 0.0, 1.0, 0.0]).reshape((3,4))
     
     Kl= np.array([1052.382387969279, 0.0, 1058.58421357867, 
                 0.0, 1052.123571352367, 800.4517901498787, 
@@ -184,11 +201,12 @@ def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=N
                 -0.02574851217386264, 0.001641530832029927, 0.9996671043389194]).reshape(3,3)
 
     Dl=np.array([-0.02203560874783666, 0.02887488453134448, 0.000593652652803611, -0.00298638958591028, 0.0])
+    Pl=np.array([1142.280571388607, 0.0, 988.5422821044922, -136.2942110803947, 0.0, 1142.280571388607, 782.6398086547852, 0.0, 0.0, 0.0, 1.0, 0.0]).reshape(3,4)
     
     rev_proj_matrix = np.zeros((4,4))
     
-    cv2.stereoRectify(cameraMatrix1=Kl, distCoeffs1=Dl, cameraMatrix2=Kr, distCoeffs2=Dr, R=np.linalg.inv(Rr)@Rl, 
-                            T=np.array([[-136.2942110803947],[0],[0]]),imageSize=(2048,1536),Q = rev_proj_matrix)
+    cv2.stereoRectify(cameraMatrix1=Pl[0:3,0:3], distCoeffs1=0, cameraMatrix2=Pr[0:3,0:3], distCoeffs2=0, #R=np.linalg.inv(Rl)@Rr, 
+                            R=Rl,T=np.array([[-136.2942110803947],[0],[0]]),imageSize=(2048,1536),Q = rev_proj_matrix)
 
     '''
     R matrix is used to convert one camera frame to a central frame.
@@ -196,30 +214,15 @@ def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=N
     REF: http://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/CameraInfo.html
         https://wiki.ros.org/image_pipeline/CameraInfo
     '''
-
+    # import ipdb;ipdb.set_trace()
     points_3D = cv2.reprojectImageTo3D(disparity_map, rev_proj_matrix) #finding co-ordinates of point cloud from disparity image
     imgL=cv2.imread(left_image,1)
 
     colors = cv2.cvtColor(imgL, cv2.COLOR_BGR2RGB)
     # import ipdb; ipdb.set_trace()
     mask_map = disparity_map > disparity_map.min()   #condition to remove pixel with zero values
-    output_points = points_3D[mask_map].astype(int)
+    output_points = points_3D[mask_map]
     output_colors = colors[mask_map].astype(int)     #saving colour of each point
-    # import ipdb; ipdb.set_trace()
-    # mask_map=output_points[:,2]<1828
-    # output_points =output_points[mask_map].astype(int)
-    # output_colors = output_colors[mask_map].astype(int)  
-
-    # #Filter for removing leaves
-    # # import ipdb;  ipdb.set_trace()
-    # color_mask_r=output_colors[:,1]<output_colors[:,0]
-    # # color_mask_b=output_colors[:,1]<output_colors[:,2]
-    # # color_mask_B=output_colors[:,1]>output_colors[:,2]
-    # # import ipdb; ipdb.set_trace()
-    # # color_mask=np.logical_or(color_mask_r,color_mask_b)
-    # # color_mask=np.logical_or(color_mask_B,color_mask)
-    # output_points=output_points[color_mask_r].astype(int)
-    # output_colors=output_colors[color_mask_r].astype(int)  
 
     print(output_points.shape) #[0] of output gives number of vertices
 
@@ -272,7 +275,7 @@ def display_inlier_outlier(cloud, ind):
 def clean_point_cloud_points(file_path, csv_file,display=False,save=False):
 
     # import ipdb; ipdb.set_trace()
-    point_cloud=od.io.read_point_cloud(file_path)
+    point_cloud=o3d.io.read_point_cloud(file_path)
     cl,ind=point_cloud.remove_radius_outlier(nb_points=50,radius=10)
     inlier_cloud = point_cloud.select_by_index(ind)
     numpy_inliner_cloud=np.asarray(inlier_cloud.points)
@@ -304,7 +307,7 @@ def clean_point_cloud_points(file_path, csv_file,display=False,save=False):
             # import ipdb;ipdb.set_trace()
             x_filter=np.bitwise_and(np.asarray(numpy_inliner_cloud[:,0],int)>=int(row[0]), np.asarray(numpy_inliner_cloud[:,0],int)<=int(row[2]))
             rem_pc=numpy_inliner_cloud[x_filter]
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             y_filter=np.bitwise_and(rem_pc[:,1]>=int(row[1]), rem_pc[:,1]<=int(row[3]))
             rem_pc=rem_pc[y_filter].mean(axis=0)
             
@@ -388,16 +391,17 @@ def image_undistort(imgr_path, K,R,D,C, display=True, save= True):
 
 if __name__=='__main__':
 
-    # match_hist('AAA_4420.png','R0058.jpeg')
+    # match_hist('./cam1_image003893.png','./L0085.jpeg')
     # find_disparity('./Disparity/L0058.jpeg','./Disparity/R0058.jpeg')
-    # obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' )
     # obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' ,'./Disparity/L0058.csv')
-    # crop_disparity_map('./Disparity/Output.png','./Disparity/L0058.csv')
+    # disparity_image=crop_disparity_map('./Disparity/Output.png','./Disparity/L0058.csv')
     # clahe_('./L0058.jpeg')
     # make_video_from_frames('./deep_sort/Implementation 2/Tests/*.png')
-    draw_boxes('Cropped_disparity_map.png','./Disparity/L0058.csv')
-    # crop_disparity_map(cv2.imread('Output.png',1),'./Disparity/L0058.csv', map_type=1)
-    # clean_point_cloud_points('./single_point.ply','./Disparity/L0058.csv')
+    # draw_boxes('Cropped_disparity_map.png','./Disparity/L0058.csv')
+    # cropped_disparity_image=crop_disparity_map(cv2.imread('./data_temp/Disparity Maps/50.png',1),'./data_temp/Detections left/L0050.csv', map_type=0)
+    obtain_3d_volume('./data_10_Jan/Disparity Maps/85.png','./data_10_Jan/Images/Left Images/L0085.jpeg',fruit_location='./data_10_Jan/Detections left/L0085.csv' ,only_fruit=True )
+    # file_path, csv_file,display=False,save=False
+    # clean_point_cloud_points('./only_fruit_85.ply','./data_10_Jan/Disparity Maps/85.png')
     # find_disparity_RAFT(cv2.imread('./Disparity/L0058.jpeg',1),cv2.imread('./Disparity/R0058.jpeg',1))
     Kr=np.array([[1052.350202570253, 0.0, 1031.808590719438],
                             [0.0, 1051.888280928595, 771.0661229952285],
