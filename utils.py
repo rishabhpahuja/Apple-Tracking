@@ -80,18 +80,20 @@ def find_disparity(image_left, image_right, display= True, save=True):
     # import ipdb; ipdb.set_trace()
     # imgR=cv2.resize(imgR,(int(1536/6),int(2048/6)))
     # imgL=cv2.resize(imgL,(int(1536/6),int(2048/6)))
-    stereo = cv2.StereoSGBM_create(minDisparity=0, # 0
-                                   numDisparities=320, # 320
+    stereo = cv2.StereoSGBM_create(
+                                    # minDisparity=0, # 0
+                                   numDisparities=200, # 320
                                    blockSize=5, # 3, 1
-                                   disp12MaxDiff=0, # 0
-                                   uniquenessRatio=15, # 15
-                                   speckleWindowSize=100, # 175
-                                   speckleRange=2, # 20
-                                   P1=100,
-                                   P2=200,
-                                   preFilterCap=31
+                                #    disp12MaxDiff=0, # 0
+                                #    uniquenessRatio=15, # 15
+                                #    speckleWindowSize=100, # 175
+                                #    speckleRange=2, # 20
+                                #    P1=100,
+                                #    P2=200,
+                                #    preFilterCap=31
                                    )
     disparity=stereo.compute(imgL, imgR)
+    # import ipdb; ipdb.set_trace()
 
     if display:
         cv2.namedWindow("Left Image",cv2.WINDOW_NORMAL)
@@ -99,9 +101,15 @@ def find_disparity(image_left, image_right, display= True, save=True):
         # cv2.namedWindow("Disparity Image",cv2.WINDOW_NORMAL)
         cv2.imshow("Left Image",imgL)
         cv2.imshow("Right Image",imgR)
-        cv2.imwrite("./DisparityImage.png",disparity)
+        # cv2.imshow("Disparity Image",disparity)
+        plt.imshow(disparity)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+        plt.show()
+    
+    if save:
+        plt.imsave("./DisparityImage_plt.png",disparity)
+        cv2.imwrite("./DisparityImage.png",disparity)
 
 def find_disparity_RAFT(imgl,imgr,display=True):
     
@@ -130,7 +138,7 @@ def crop_disparity_map(disparity_map, locations, map_type=0,display=True,save=Fa
                 map[int((int(row[1])+int(row[3]))/2),int((int(row[0])+int(row[2]))/2)]=255
             
             elif map_type==0:
-                map[int(row[1]):int(row[3]),int(row[0]):int(row[2])]=255
+                map[10+int(row[1]):10+int(row[3]),int(row[0]):int(row[2])]=255
     
     cropped_disparity_map=cv2.bitwise_and(disparity_map, map)
     if display:
@@ -171,9 +179,10 @@ def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=N
     the fourth column [Tx Ty 0]' is related to the position of the optical center of the second camera in the first camera's frame
     Tx = -fx' * B, where B is the baseline between the cameras
     '''
+    file_name='default.ply'
     if only_fruit:
         file_name='only_fruit_85.ply'
-        disparity_map=crop_disparity_map(disparity_map,locations=fruit_location,map_type=0 ,display=False)
+        disparity_map=crop_disparity_map(disparity_map,locations=fruit_location,map_type=0 ,display=True)
     
     elif single_point:
         file_name='single_point.ply'
@@ -205,9 +214,13 @@ def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=N
     
     rev_proj_matrix = np.zeros((4,4))
     
-    cv2.stereoRectify(cameraMatrix1=Pl[0:3,0:3], distCoeffs1=0, cameraMatrix2=Pr[0:3,0:3], distCoeffs2=0, #R=np.linalg.inv(Rl)@Rr, 
-                            R=Rl,T=np.array([[-136.2942110803947],[0],[0]]),imageSize=(2048,1536),Q = rev_proj_matrix)
+    cv2.stereoRectify(cameraMatrix1=Pr[0:3,0:3], distCoeffs1=0, cameraMatrix2=Pl[0:3,0:3], distCoeffs2=0, R=np.linalg.inv(Rl)@Rr, 
+                            T=np.array([[-136.2942110803947],[0],[0]]),imageSize=(2048,1536),Q = rev_proj_matrix)
 
+    # Q = np.float32([[1, 0, 0, 0],
+	# 			[0, -1, 0, 0],
+	# 			[0, 0, 1142, 0],
+	# 			[0, 0, 0, 1]])
     '''
     R matrix is used to convert one camera frame to a central frame.
     
@@ -343,7 +356,7 @@ def image_shift(imgr_path,imgl_path, display=True, save= True):
     if save:
         cv2.imwrite('Shifted.jpeg',shifted)     
 
-def draw_boxes(img, csv_file, display=False,save=True):
+def draw_boxes(img, csv_file, display=True,save=False):
 
     img=cv2.imread(img,1)
     with open(csv_file) as csvfile:
@@ -392,14 +405,14 @@ def image_undistort(imgr_path, K,R,D,C, display=True, save= True):
 if __name__=='__main__':
 
     # match_hist('./cam1_image003893.png','./L0085.jpeg')
-    # find_disparity('./Disparity/L0058.jpeg','./Disparity/R0058.jpeg')
+    # find_disparity('./data_10_Jan/Images/Left Images/L0050.jpeg','./data_10_Jan/Images/Right Images/R0050.jpeg')
     # obtain_3d_volume('./Disparity/Output.png','./Disparity/L0058.jpeg' ,'./Disparity/L0058.csv')
     # disparity_image=crop_disparity_map('./Disparity/Output.png','./Disparity/L0058.csv')
     # clahe_('./L0058.jpeg')
     # make_video_from_frames('./deep_sort/Implementation 2/Tests/*.png')
-    # draw_boxes('Cropped_disparity_map.png','./Disparity/L0058.csv')
+    draw_boxes('./data_10_Jan/Images/Right Images/R0050.jpeg','./Disparity/L0058.csv')
     # cropped_disparity_image=crop_disparity_map(cv2.imread('./data_temp/Disparity Maps/50.png',1),'./data_temp/Detections left/L0050.csv', map_type=0)
-    obtain_3d_volume('./data_10_Jan/Disparity Maps/85.png','./data_10_Jan/Images/Left Images/L0085.jpeg',fruit_location='./data_10_Jan/Detections left/L0085.csv' ,only_fruit=True )
+    # obtain_3d_volume('./DisparityImage_plt.png','./data_10_Jan/Images/Right Images/R0050.jpeg',fruit_location='./data_10_Jan/Detections left/L0050.csv' ,only_fruit=True)
     # file_path, csv_file,display=False,save=False
     # clean_point_cloud_points('./only_fruit_85.ply','./data_10_Jan/Disparity Maps/85.png')
     # find_disparity_RAFT(cv2.imread('./Disparity/L0058.jpeg',1),cv2.imread('./Disparity/R0058.jpeg',1))
