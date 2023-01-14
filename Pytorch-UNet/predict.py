@@ -47,7 +47,7 @@ def predict_img(net,
 
 def get_args():
     parser = argparse.ArgumentParser(description='Predict masks from input images')
-    parser.add_argument('--model', '-m', default='./checkpoints/checkpoint_epoch28.pth', metavar='FILE',
+    parser.add_argument('--model', '-m', default='./checkpoints/checkpoint_epoch21.pth', metavar='FILE',
                         help='Specify the file in which the model is stored')
     parser.add_argument('--input', '-i', metavar='INPUT', nargs='+', help='Filenames of input images')
     parser.add_argument('--output', '-o', metavar='OUTPUT', nargs='+', help='Filenames of output images')
@@ -79,8 +79,9 @@ def mask_to_image(mask: np.ndarray):
 
 if __name__ == '__main__':
     args = get_args()
-    in_files = '../Disparity/data/Images/Left Images/L0085.jpeg'
-    out_files = 'L0085.png'
+    in_files = './AAA_4420_.png'
+    # in_files='L0085.jpeg'
+    out_files = './AAA_4420_.jpeg'
 
     net = UNet(n_channels=3, n_classes=2, bilinear=args.bilinear)
 

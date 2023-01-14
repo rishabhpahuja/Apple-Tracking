@@ -20,12 +20,12 @@ class BasicDataset(Dataset):
         self.transforms_image=transforms.Compose([
                                                     # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
                                                     transforms.ToPILImage(),
-                                                    # transforms.ColorJitter(),
+                                                    transforms.ColorJitter(brightness=0.25,contrast=0.25,saturation=0.25,hue=0.25),
                                                     # transforms.RandomGrayscale(p=0.1),
                                                     # transforms.RandomInvert(p=0.1),
-                                                    # transforms.RandomAdjustSharpness(sharpness_factor=2,p=0.5),
-                                                    # transforms.RandomAutocontrast(p=0.5),
-                                                    # transforms.RandomEqualize(p=0.5),                                                    
+                                                    transforms.RandomAdjustSharpness(sharpness_factor=2,p=0.5),
+                                                    transforms.RandomAutocontrast(p=0.5),
+                                                    transforms.RandomEqualize(p=0.5),                                                    
                                                     transforms.ToTensor()
                                                 ]
                                                     )
