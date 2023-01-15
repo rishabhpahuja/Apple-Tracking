@@ -8,6 +8,7 @@ from tqdm import tqdm
 # import open3d as od
 import csv
 import open3d as o3d
+from Disparity import demo
 
 def make_video_from_frames(path, Iframe=0, Fframe=100,REF=False):
 
@@ -111,16 +112,24 @@ def find_disparity(image_left, image_right, display= True, save=True):
         plt.imsave("./DisparityImage_plt.png",disparity)
         cv2.imwrite("./DisparityImage.png",disparity)
 
-def find_disparity_RAFT(imgl,imgr,display=True):
+def find_disparity_RAFT(imgl,imgr,display=True,save=False,resize=None):
+
+    '''
+    imgl: Left stereo image path (string)
+    imgr: Right stereo image path (string)
+    display: bool, if calculated disparity has to be viewed 
+    '''
     
-    disparity=demo.main(imgl,imgr)
-    disparity=np.asarray(disparity,np.uint8)
+    disparity_ob=demo.Disparity(resize)    
+    disparity=disparity_ob.find_disparity(imgl,imgr,save).astype(np.uint8)
 
     if display:
         cv2.namedWindow('Disparity Image', cv2.WINDOW_NORMAL)
         cv2.imshow('Disparity Image', disparity)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+
+    return disparity
     
 
 def crop_disparity_map(disparity_map, locations, map_type=0,display=True,save=False):
