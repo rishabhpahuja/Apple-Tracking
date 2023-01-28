@@ -11,6 +11,7 @@ import tensorflow.compat.v1 as tf
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 if len(physical_devices) > 0:
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
+    tf.config.experimental.set_memory_growth(physical_devices[1], True)
 
 
 
@@ -86,7 +87,7 @@ def extract_image_patch(image, bbox, patch_shape):
 
     # convert to top left, bottom right
     bbox[2:] += bbox[:2]
-    bbox = bbox.astype(np.int)
+    bbox = bbox.astype(np.int8)
 
     # clip at image boundaries
     bbox[:2] = np.maximum(0, bbox[:2])

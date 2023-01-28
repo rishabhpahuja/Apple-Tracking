@@ -1,16 +1,21 @@
 # Compiled source #
 20_fps_moving
 Dataset
+Dataset (copy)
+data_10_Jan_latest
 Previous implementation
 launch
 YOLO_v3
 point_clouds
-Pytorch-UNet (copy)
+Segmentation (copy)
+deep_sort_copy
+deep_sort (copy)
 *.png
 *.mp4
 *.ply
 *.jpeg
 *.yaml
 *.csv
-
+*.jpg
+__pycache__
 

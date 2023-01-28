@@ -1,6 +1,6 @@
 import sys
 import os
-sys.path.append(os.getcwd()+'/Disparity')
+# sys.path.append(os.getcwd()+'/Disparity')
 import ipdb
 import argparse
 import glob
@@ -11,29 +11,32 @@ from PIL import Image
 from matplotlib import pyplot as plt
 import cv2
 
+# import ipdb; ipdb.set_trace()
 from core.raft_stereo import RAFTStereo
 from core.utils.utils import InputPadder
 
 class Disparity:
 
-    def __init__(self,resize=None):
-
-        os.chdir('./Disparity')
+    def __init__(self,resize=None,model_path=None):
+        
+        os.chdir('../Disparity')
         self.device = 'cuda'
-        self.args=self.main()
+        self.args=self.main(model_path)
         self.resize=resize
         
         #Defining the model
         self.model = torch.nn.DataParallel(RAFTStereo(self.args), device_ids=[0])
         # self.model=RAFTStereo(self.args)
         self.model.load_state_dict(torch.load(self.args.restore_ckpt))
+        os.chdir('../deep_sort')
         self.model = self.model.module
         self.model.to(self.device)
         self.model.eval()
 
     def load_image(self,imfile):
         # import ipdb; ipdb.set_trace()
-        img = np.array(Image.open(imfile)).astype(np.uint8)
+        # img = np.array(Image.open(imfile)).astype(np.uint8)
+        img=imfile.astype(np.uint8)
         img = torch.from_numpy(img).permute(2, 0, 1).float()
         
         if self.resize:
@@ -86,10 +89,15 @@ class Disparity:
             # plt.imsave(output_directory / f"{file_stem}.png", -flow_up.cpu().numpy().squeeze(), cmap='jet')
 
 
-    def main(self):
+    def main(self,model_path):
 
         parser = argparse.ArgumentParser()
-        parser.add_argument('--restore_ckpt',default='./raftstereo-middlebury.pth' ,help="restore checkpoint")
+        
+        if model_path is None:
+            parser.add_argument('--restore_ckpt',default='./raftstereo-middlebury.pth' ,help="restore checkpoint")
+        
+        else:
+            parser.add_argument('--restore_ckpt',default=model_path ,help="restore checkpoint")
         parser.add_argument('--save_numpy', action='store_true', help='save output as numpy arrays')
         parser.add_argument('--output_directory', help="directory to save output", default="./test")
         parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')

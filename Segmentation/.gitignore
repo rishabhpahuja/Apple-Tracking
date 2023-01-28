@@ -8,3 +8,4 @@ venv/
 .idea/
 wandb/
 test.py
+__pycache__
