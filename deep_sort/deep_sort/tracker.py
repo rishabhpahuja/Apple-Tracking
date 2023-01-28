@@ -51,7 +51,7 @@ class Tracker:
 
         This function should be called once every time step, before `update`.
         """
-        # import ipdb;ipdb.set_trace
+        import ipdb;ipdb.set_trace
         for track in self.tracks:
             track.predict(self.kf)
 
@@ -65,6 +65,7 @@ class Tracker:
 
         """
         # Run matching cascade.
+        # import ipdb;ipdb.set_trace()
         matches, unmatched_tracks, unmatched_detections = \
             self._match(detections)
 
@@ -100,7 +101,7 @@ class Tracker:
             features = np.array([dets[i].feature for i in detection_indices])
             targets = np.array([tracks[i].track_id for i in track_indices])
             cost_matrix = self.metric.distance(features, targets)
-            cost_matrix = linear_assignment.gate_cost_matrix(
+            cost_matrix = linear_assignment.gate_cost_matrix_3D(
                 self.kf, cost_matrix, tracks, dets, track_indices,
                 detection_indices)
 
@@ -111,18 +112,17 @@ class Tracker:
         confirmed_tracks = [
             i for i, t in enumerate(self.tracks) if t.is_confirmed()]
         unconfirmed_tracks = [
-            i for i, t in enumerate(self.tracks) if not t.is_confirmed()]
+            i for i, t in enumerate(self.tracks) if not t.is_confirmed()] #Unmatched tracks from previous frame
 
         # Associate confirmed tracks using appearance features.
-        matches_a, unmatched_tracks_a, unmatched_detections = \
-            linear_assignment.matching_cascade(
+        matches_a, unmatched_tracks_a, unmatched_detections = linear_assignment.matching_cascade(
                 gated_metric, self.metric.matching_threshold, self.max_age,
                 self.tracks, detections, confirmed_tracks)
 
-        # Associate remaining tracks together with unconfirmed tracks using IOU.
+        # Associate remaining tracks together with unconfirmed tracks using IOU to tackle occlusion
         iou_track_candidates = unconfirmed_tracks + [
             k for k in unmatched_tracks_a if
-            self.tracks[k].time_since_update == 1]
+            self.tracks[k].time_since_update == 1] #The second part means the contuining tracks being tracked and matched till previous frame but not matched in this frame
         unmatched_tracks_a = [
             k for k in unmatched_tracks_a if
             self.tracks[k].time_since_update != 1]
@@ -137,8 +137,10 @@ class Tracker:
 
     def _initiate_track(self, detection):
         mean, covariance = self.kf.initiate(detection.to_xyah())
+        mean_3D,covariance_3D=self.kf.initiate_3D(detection.points_3D,detection.to_xyah()[3])
         class_name = detection.get_class()
         self.tracks.append(Track(
             mean, covariance, self._next_id, self.n_init, self.max_age,
-            detection.feature, class_name))
+            feature=detection.feature, class_name=class_name, confidence=detection.confidence,points_3D=detection.points_3D,mean_3D=mean_3D,\
+                covariance_3D=covariance_3D))
         self._next_id += 1

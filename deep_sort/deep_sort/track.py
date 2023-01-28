@@ -63,19 +63,25 @@ class Track:
 
     """
 
-    def __init__(self, mean, covariance, track_id, n_init, max_age,
-                 feature=None, class_name=None):
+    def __init__(self, mean, covariance, track_id, n_init, max_age, confidence,
+                 feature=None, class_name=None,points_3D=None,mean_3D=None,covariance_3D=None):
         self.mean = mean
         self.covariance = covariance
         self.track_id = track_id
         self.hits = 1
         self.age = 1
         self.time_since_update = 0
+        self.confidence=confidence
 
         self.state = TrackState.Tentative
         self.features = []
         if feature is not None:
             self.features.append(feature)
+        
+        if points_3D is not None:
+            self.point_3D=points_3D
+            self.mean_3D=mean_3D
+            self.covariance_3D=covariance_3D
 
         self._n_init = n_init
         self._max_age = max_age
@@ -123,7 +129,7 @@ class Track:
             The Kalman filter.
 
         """
-        self.mean, self.covariance = kf.predict(self.mean, self.covariance)
+        self.mean, self.covariance,self.mean_3D,self.covariance_3D = kf.predict(self.mean, self.covariance,self.mean_3D,self.covariance_3D)
         self.age += 1
         self.time_since_update += 1
 
@@ -139,8 +145,8 @@ class Track:
             The associated detection.
 
         """
-        self.mean, self.covariance = kf.update(
-            self.mean, self.covariance, detection.to_xyah())
+        self.mean, self.covariance, self.mean_3D,self.covariance_3D = kf.update(
+            self.mean, self.covariance, detection.to_xyah(),self.mean_3D,self.covariance_3D,detection.points_3D)
         self.features.append(detection.feature)
 
         self.hits += 1

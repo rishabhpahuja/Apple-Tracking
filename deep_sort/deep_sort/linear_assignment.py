@@ -79,7 +79,7 @@ def min_cost_matching(
 def matching_cascade(
         distance_metric, max_distance, cascade_depth, tracks, detections,
         track_indices=None, detection_indices=None):
-    """Run matching cascade.
+    """Run matching cascade where matching is done on the basis of cost metric, here cosine similarity metric
 
     Parameters
     ----------
@@ -143,6 +143,57 @@ def matching_cascade(
     unmatched_tracks = list(set(track_indices) - set(k for k, _ in matches))
     return matches, unmatched_tracks, unmatched_detections
 
+
+def gate_cost_matrix_3D(
+        kf, cost_matrix, tracks, detections, track_indices, detection_indices,
+        gated_cost=INFTY_COST, only_position=False):
+    """Invalidate infeasible entries in cost matrix based on the state
+    distributions obtained by Kalman filtering.
+
+    Parameters
+    ----------
+    kf : The Kalman filter.
+    cost_matrix : ndarray
+        The NxM dimensional cost matrix, where N is the number of track indices
+        and M is the number of detection indices, such that entry (i, j) is the
+        association cost between `tracks[track_indices[i]]` and
+        `detections[detection_indices[j]]`.
+    tracks : List[track.Track]
+        A list of predicted tracks at the current time step.
+    detections : List[detection.Detection]
+        A list of detections at the current time step.
+    track_indices : List[int]
+        List of track indices that maps rows in `cost_matrix` to tracks in
+        `tracks` (see description above).
+    detection_indices : List[int]
+        List of detection indices that maps columns in `cost_matrix` to
+        detections in `detections` (see description above).
+    gated_cost : Optional[float]
+        Entries in the cost matrix corresponding to infeasible associations are
+        set this value. Defaults to a very large value.
+    only_position : Optional[bool]
+        If True, only the x, y position of the state distribution is considered
+        during gating. Defaults to False.
+
+    Returns
+    -------
+    ndarray
+        Returns the modified cost matrix.
+
+    """
+    # gating_dim = 2 if only_position else 3
+    gating_dim=3
+    gating_threshold = kalman_filter.chi2inv95[gating_dim]
+    # gating_threshold=120
+    measurements = np.asarray(
+        [detections[i].points_3D for i in detection_indices])
+    for row, track_idx in enumerate(track_indices):
+        track = tracks[track_idx]
+        gating_distance = kf.gating_distance_3D(
+            track.mean_3D, track.covariance_3D, measurements, only_position)
+        # import ipdb; ipdb.set_trace()
+        cost_matrix[row, gating_distance > gating_threshold] = gated_cost
+    return cost_matrix
 
 def gate_cost_matrix(
         kf, cost_matrix, tracks, detections, track_indices, detection_indices,
