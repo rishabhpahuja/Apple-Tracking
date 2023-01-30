@@ -255,7 +255,27 @@ def find_contour_center(mask_cropped,image_,row,point_mask ,display=False):
     return image_,point_mask
 
 #Find bounding boxes
+def occlusion_score(bbox, mask):
+
+    fruit=mask[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
+    cont,_=cv2.findContours(fruit, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            # import ipdb;ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
+    if len(cont)>1:
+        max=0
+        for contour in cont:
+            k=cv2.contourArea(contour) 
+            if max<k:
+                max=cv2.contourArea(contour)
+                cont=contour
+    else:
+        cont=cont[0]
+    score=cv2.contourArea(cont)/(fruit.shape[0]*fruit.shape[1])
+
+    return score
+
 def find_center(detections,image,mask):
+
 
     '''
     csv_file: file consisting of bounding box location of left stereo image
