@@ -53,7 +53,7 @@ def yolov3_yolov8_dataset():
             for line in lines:
 
                 row=line.split(' ')
-                new_row=[(float(row[0])+float(row[2]))/(2*w),(float(row[1])+float(row[3].split('\n')[0]))/(2*h), \
+                new_row=[(2*float(row[0])+float(row[2]))/(2*w),(2*float(row[1])+float(row[3].split('\n')[0]))/(2*h), \
                 abs(float(row[2]))/w,abs(float(row[3].split('\n')[0]))/h]
                 
                 # import ipdb;ipdb.set_trace()
@@ -82,4 +82,4 @@ def add_class():
 # move_images()
 csv2txt()
 yolov3_yolov8_dataset()
-# add_class()
+add_class()
