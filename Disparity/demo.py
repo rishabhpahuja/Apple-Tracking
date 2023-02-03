@@ -20,7 +20,7 @@ class Disparity:
     def __init__(self,resize=None,model_path=None):
         
         os.chdir('../Disparity')
-        self.device = 'cuda'
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.args=self.main(model_path)
         self.resize=resize
         
@@ -34,8 +34,6 @@ class Disparity:
         self.model.eval()
 
     def load_image(self,imfile):
-        # import ipdb; ipdb.set_trace()
-        # img = np.array(Image.open(imfile)).astype(np.uint8)
         img=imfile.astype(np.uint8)
         img = torch.from_numpy(img).permute(2, 0, 1).float()
         
@@ -46,16 +44,9 @@ class Disparity:
         return img[None].to(self.device)
 
     def find_disparity(self,imgl,imgr,save=False):
-        # os.chdir('./Disparity')
-        # output_directory = Path(args.output_directory)
-        # output_directory.mkdir(exist_ok=True)
 
         with torch.no_grad():
-            # left_images = sorted(glob.glob(args.left_imgs, recursive=True))
-            # right_images = sorted(glob.glob(args.right_imgs, recursive=True))
-            # print(f"Found {len(left_images)} images. Saving files to {output_directory}/")
 
-            # for (imfile1, imfile2) in tqdm(list(zip(left_images, right_images))):
             os.chdir('../')
             
             if self.resize:
@@ -66,7 +57,6 @@ class Disparity:
                 image1 = self.load_image(imgl)
                 image2 = self.load_image(imgr)
 
-            # import ipdb;ipdb.set_trace()
             padder = InputPadder(image1.shape, divis_by=1)
             image1, image2 = padder.pad(image1, image2)
 
@@ -83,11 +73,7 @@ class Disparity:
             if save:
                 cv2.imwrite('85_.png',(flow_up.squeeze().cpu().numpy())*-1)
             
-            # import ipdb;ipdb.set_trace()
             return((flow_up.squeeze().cpu().numpy())*-1)
-
-            # plt.imsave(output_directory / f"{file_stem}.png", -flow_up.cpu().numpy().squeeze(), cmap='jet')
-
 
     def main(self,model_path):
 
