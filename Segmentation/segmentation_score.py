@@ -63,10 +63,10 @@ def pixel_score():
             score=cv2.contourArea(cont)/(fruit.shape[0]*fruit.shape[1])
             cv2.putText(image,'Score:'+str(round(score,3)),color=(255,255,255),org=(x1,y1),fontScale=0.9,fontFace=cv2.FONT_HERSHEY_DUPLEX)
             cv2.rectangle(image, (x1,y1), (x2,y2), (255,0,0), 2)
-    cv2.namedWindow('image',cv2.WINDOW_NORMAL)
-    # https://en.wikipedia.org/wiki/Polsby%E2%80%93Popper_test
-    cv2.imshow("image",image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
+    # cv2.namedWindow('image',cv2.WINDOW_NORMAL)
+    # # https://en.wikipedia.org/wiki/Polsby%E2%80%93Popper_test
+    # cv2.imshow("image",image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+    cv2.imwrite('Area_wise_score.png',image)
 pixel_score()

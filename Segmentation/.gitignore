@@ -9,3 +9,5 @@ venv/
 wandb/
 test.py
 __pycache__
+results
+
