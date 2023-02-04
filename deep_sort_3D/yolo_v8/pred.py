@@ -20,6 +20,7 @@ class V8:
         # Predict with the model
         results = self.model(image,conf=conf,iou=iou)  # predict on an image
         boxes = np.asarray(results[0].cpu().numpy().boxes.xyxy,np.uint16)
+        scores=results[0].boxes.conf.cpu().numpy()
         # import ipdb; ipdb.set_trace()
         if debug:
             #Displaying all the boxes and scores on the image
@@ -33,4 +34,4 @@ class V8:
             cv2.destroyAllWindows()
             cv2.imwrite('yolo_v8_score.png',image)
         
-        return boxes
+        return boxes,scores
