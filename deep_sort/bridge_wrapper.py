@@ -176,8 +176,8 @@ class YOLOv7_DeepSORT:
                 # print(bbox)
                 cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
                 cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(track.track_id)))*30, int(bbox[1])), color, -1) #To make a solid rectangle box to write text on
-                # cv2.putText(frame_left, class_name + ":" + str(track.track_id)+'-'+str(round(track.confidence,2)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)
-                cv2.putText(frame_left, class_name + " " + str(track.track_id)+':'+str(round(ut.occlusion_score(bbox,mask),3)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)  
+                cv2.putText(frame_left, class_name + ":" + str(track.track_id)+'-'+str(round(track.confidence,2)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)
+                # cv2.putText(frame_left, class_name + " " + str(track.track_id)+':'+str(round(ut.occlusion_score(bbox,mask),3)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)  
                 cv2.putText(frame_left, "Frame_num:"+str(frame_num),(len(frame_left[0])-300,len(frame_left)-100),0, 1.2, (255,255,255),2, lineType=cv2.LINE_AA)  
                 if verbose == 2:
                     print("Tracker ID: {}, Class: {},  BBox Coords (xmin, ymin, xmax, ymax): {}".format(str(track.track_id), class_name, (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))))
@@ -231,7 +231,7 @@ def YOLOV3(model, frame):
             class_id= np.argmax(score)
             confidence= score[class_id]
 
-            if confidence>0.7:
+            if confidence>0.15:
                 center_x = int(detection[0] * width)
                 center_y = int(detection[1] * hight)
                 # ipdb.set_trace()
@@ -243,7 +243,7 @@ def YOLOV3(model, frame):
                 confidences.append((float(confidence)))
                 class_ids.append(class_id)
 
-    indexes = cv2.dnn.NMSBoxes(boxes,confidences,.3,.4)
+    indexes = cv2.dnn.NMSBoxes(boxes,confidences,.15,.3)
     # indexes = cv2.dnn.NMSBoxes(boxes,confidences,.15,.3)
     
     return [boxes[i]for i in indexes],[confidences[i]for i in indexes], [class_ids[i] for i in indexes]
