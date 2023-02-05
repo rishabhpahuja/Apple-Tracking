@@ -53,6 +53,11 @@ def _cosine_distance(a, b, data_is_normalized=False):
         b = np.asarray(b) / np.linalg.norm(b, axis=1, keepdims=True)
     return 1. - np.dot(a, b.T)
 
+def _nn_mahalanobis_distance(mean, covariance, measurements):
+
+
+    pass
+
 
 def _nn_euclidean_distance(x, y):
     """ Helper function for nearest neighbor distance metric (Euclidean).
@@ -127,6 +132,8 @@ class NearestNeighborDistanceMetric(object):
             self._metric = _nn_euclidean_distance
         elif metric == "cosine":
             self._metric = _nn_cosine_distance
+        elif metric=="mahalanobis":
+            self.metric=_nn_mahalanobis_distance
         else:
             raise ValueError(
                 "Invalid metric; must be either 'euclidean' or 'cosine'")

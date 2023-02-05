@@ -36,13 +36,24 @@ import Utils as ut
 config = ConfigProto()
 config.gpu_options.allow_growth = True
 
+chi2inv95 = {
+    1: 3.8415,
+    2: 5.9915,
+    3: 7.8147,
+    4: 9.4877,
+    5: 11.070,
+    6: 12.592,
+    7: 14.067,
+    8: 15.507,
+    9: 16.919}
 
 
 class YOLOv8_SORT_3D:
     '''
     Class to Wrap ANY detector  of YOLO type with DeepSORT
     '''
-    def __init__(self, detector, segment,disparity,nn_budget:float=None, nms_max_overlap:float=1.0 ):
+    def __init__(self, detector, segment,disparity,nn_budget:float=None, nms_max_overlap:float=1.0, base_coordinate=np.array([0,0,0]),vel=np.array([20,0,0]),
+                    _st_weight_position=2 ):
         '''
         args: 
             detector: object of YOLO models or any model which gives you detections as [x1,y1,x2,y2,scores, class]
@@ -58,8 +69,13 @@ class YOLOv8_SORT_3D:
         self.coco_names_path = ['apples']
         self.nms_max_overlap = nms_max_overlap
 
+
         # initialize sort3D
-        self.tracker = Tracker() # initialize tracker
+        metric=nn_matching.NearestNeighborDistanceMetric("mahalanobis",matching_threshold=chi2inv95[3],budget=nn_budget)
+        self.tracker = Tracker(metric=metric,v=vel,mean=base_coordinate,_st_weight_position=_st_weight_position) # initialize tracker
+        #Initialize rover
+        self.base_cord=base_coordinate
+        self.v=vel
 
 
     def track_video(self,left_video:str, right_video:str,output:str, skip_frames:int=0, show_live:bool=False,
@@ -117,12 +133,13 @@ class YOLOv8_SORT_3D:
             ######################### Generating disparity point mask #####################################
             point_disparity=np.where(point_mask==255,disparity,disparity*0)
             points_3d=ut.obtain_3d_volume(point_disparity,frame_left,save_file=True, frame_num=frame_num)
-            yolo_dets=yolo_dets[pos==1]
+            points_3d=self.base_cord-points_3d
+            yolo_dets=yolo_dets[pos==1] #Removing detection which do not have a segmented apple inside the fruit
             scores=scores[pos==1]
 
             names=np.array(["Apple"]*len(yolo_dets))
 
-            if len(points_3d)!=len(yolo_dets): #Condition to chcek if all the bounidng boxes have a fruit
+            if len(points_3d)!=len(yolo_dets): #Condition to check if all the bounidng boxes have a fruit
                 print("*"*20,"STOPPING CODE","*"*20)
                 print("All boxes do not have a center point")
                 break
@@ -131,16 +148,18 @@ class YOLOv8_SORT_3D:
                 cv2.putText(frame_left, "Objects being tracked: {}".format(len(names)), (5, 35), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1.5, (255,255,255), 2)
 
             ######################################### SORT_3D ##############################################
-            print('*'*50)
-            import ipdb; ipdb.set_trace()
-            detections = [Detection(bbox, score, class_name,  point_3D) for bbox, score, class_name,  point_3D \
-                                    in zip(yolo_dets, scores, names, points_3d)] # [No of BB per frame] deep_sort.detection.Detection object
-            cmap = plt.get_cmap('tab20b') #initialize color map
-            colors = [cmap(i)[:3] for i in np.linspace(0, 1, 20)]   
+            # import ipdb;ipdb.set_trace()
+            position_3D=np.vstack((self.rover_detec(self.base_cord),points_3d))
+            detections = Detection(yolo_dets, scores, names,  position_3D.flatten()) # detection object for rover and all the apples
 
-            self.tracker.predict()  # Call the tracker
+            if frame_num!=1:
+                self.tracker.predict()  # Call the tracker except for frame 1 since there is not tracker is made at the end of frame 1
+            
             unmatched_tracks,unmatched_detections=self.tracker.update(detections) #  update using Kalman Gain
 
+            cmap = plt.get_cmap('tab20b') #initialize color map
+            colors = [cmap(i)[:3] for i in np.linspace(0, 1, 20)]   
+            
             # import ipdb;ipdb.set_trace()
             for track in self.tracker.tracks:  # update new findings AKA tracks                
                 
@@ -194,41 +213,10 @@ class YOLOv8_SORT_3D:
         cv2.destroyAllWindows()
 
 
-def YOLOV3(model, frame):
+    def rover_detec(self,pos):
 
-    blob = cv2.dnn.blobFromImage(frame, 1.0/255,(416,416),(0,0,0),swapRB = True,crop= False)
-    model.setInput(blob)
-
-    hight,width,_=frame.shape
-
-    model.enableWinograd(False)
-    output_layers_name = model.getUnconnectedOutLayersNames()
-
-    layerOutputs = model.forward(output_layers_name)
-
-    boxes= []
-    confidences= []
-    class_ids= []
-
-    for output in layerOutputs:
-        for detection in output:
-            score= detection[5:]
-            class_id= np.argmax(score)
-            confidence= score[class_id]
-
-            if confidence>0.15:
-                center_x = int(detection[0] * width)
-                center_y = int(detection[1] * hight)
-                # ipdb.set_trace()
-                w = int(detection[2] * width)
-                h = int(detection[3]* hight)
-                x = int(center_x - w/2)
-                y = int(center_y - h/2)
-                boxes.append([x,y,w,h])
-                confidences.append((float(confidence)))
-                class_ids.append(class_id)
-
-    indexes = cv2.dnn.NMSBoxes(boxes,confidences,.15,.3)
-    # indexes = cv2.dnn.NMSBoxes(boxes,confidences,.15,.3)
-    
-    return [boxes[i]for i in indexes],[confidences[i]for i in indexes], [class_ids[i] for i in indexes]
+        T=1
+        M=np.array([[T,0,0],[0,T,0],[0,0,T]])
+        noise= np.random.normal(0,1,3)
+        self.base_cord=pos.T + M@self.v + noise
+        return self.base_cord

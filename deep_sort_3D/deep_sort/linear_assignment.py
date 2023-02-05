@@ -119,7 +119,7 @@ def matching_cascade(
     if track_indices is None:
         track_indices = list(range(len(tracks)))
     if detection_indices is None:
-        detection_indices = list(range(len(detections)))
+        detection_indices = list(range(len(detections.points_2D)))
 
     unmatched_detections = detection_indices
     matches = []
@@ -140,7 +140,8 @@ def matching_cascade(
                 distance_metric, max_distance, tracks, detections,
                 track_indices_l, unmatched_detections)
         matches += matches_l
-    unmatched_tracks = list(set(track_indices) - set(k for k, _ in matches))
+    unmatched_tracks = list(set(track_indices) - set(k for k, _ in matches)) 
+    # import ipdb; ipdb.set_trace()
     return matches, unmatched_tracks, unmatched_detections
 
 

@@ -8,7 +8,7 @@ class Detection(object):
 
     Parameters
     ----------
-    tlwh : array_like
+    points_2D : array_like
         Bounding box in format `(x1, y1, x2, y2)`.
     confidence : float
         Detector confidence score.
@@ -17,7 +17,7 @@ class Detection(object):
 
     Attributes
     ----------
-    tlwh : ndarray
+    points_2D : ndarray
         Bounding box in format `(top left x, top left y, righ x, right y)`.
     confidence : ndarray
         Detector confidence score.
@@ -28,11 +28,10 @@ class Detection(object):
 
     """
 
-    def __init__(self, tlwh,confidence, class_name, feature,point_3D=None):
-        self.tlwh = np.asarray(tlwh, dtype=np.float32)
-        self.confidence = float(confidence)
+    def __init__(self, points_2D,confidence, class_name, point_3D=None):
+        self.points_2D = np.asarray(points_2D, dtype=np.float32)
+        self.confidence = np.asarray(confidence,np.float32)
         self.class_name = class_name
-        self.feature = np.asarray(feature, dtype=np.float32)
         self.points_3D=point_3D
 
     def get_class(self):
@@ -42,7 +41,7 @@ class Detection(object):
         """Convert bounding box to format `(min x, min y, w, h)`, i.e.,
         `(top left x,y,width,height)`.
         """
-        ret = self.tlwh.copy()
+        ret = self.points_2D.copy()
         ret[2]=abs(ret[0]-ret[2])
         ret[3]=abs(ret[1]-ret[3])
         return ret
@@ -51,7 +50,7 @@ class Detection(object):
         """Convert bounding box to format `(center x, center y, aspect ratio,
         height)`, where the aspect ratio is `width / height`.
         """
-        ret = self.tlwh.copy()
+        ret = self.points_2D.copy()
         ret[:2] += ret[2:] / 2
         ret[2] /= ret[3]
         return ret

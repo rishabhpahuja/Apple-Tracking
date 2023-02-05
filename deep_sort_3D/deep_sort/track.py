@@ -119,7 +119,7 @@ class Track:
     def get_class(self):
         return self.class_name
 
-    def predict(self, kf):
+    def predict(self, kf, length):
         """Propagate the state distribution to the current time step using a
         Kalman filter prediction step.
 
@@ -127,9 +127,10 @@ class Track:
         ----------
         kf : kalman_filter.KalmanFilter
             The Kalman filter.
+        length: number of detections
 
         """
-        self.mean, self.covariance,self.mean_3D,self.covariance_3D = kf.predict(self.mean, self.covariance,self.mean_3D,self.covariance_3D)
+        self.mean, self.covariance = kf.predict(self.mean, self.covariance)
         self.age += 1
         self.time_since_update += 1
 
