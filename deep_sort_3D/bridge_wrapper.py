@@ -155,11 +155,12 @@ class YOLOv8_SORT_3D:
             if frame_num!=1:
                 self.tracker.predict()  # Call the tracker except for frame 1 since there is not tracker is made at the end of frame 1
             
-            unmatched_tracks,unmatched_detections=self.tracker.update(detections) #  update using Kalman Gain
+            self.tracker.update(detections) #  update using Kalman Gain
 
             cmap = plt.get_cmap('tab20b') #initialize color map
             colors = [cmap(i)[:3] for i in np.linspace(0, 1, 20)]   
             
+            continue
             # import ipdb;ipdb.set_trace()
             for track in self.tracker.tracks:  # update new findings AKA tracks                
                 

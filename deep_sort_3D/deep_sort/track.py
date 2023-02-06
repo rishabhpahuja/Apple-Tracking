@@ -1,5 +1,5 @@
 # vim: expandtab:ts=4:sw=4
-
+import numpy as np
 
 class TrackState:
     """
@@ -24,68 +24,63 @@ class Track:
 
     Parameters
     ----------
-    mean : ndarray
-        Mean vector of the initial state distribution.
+    mean_2D : ndarray ((N+1)X4)
+        Mean vector of the initial state distribution in image plane
+    mean_3D : ndarray ((N+1)X3)
+        Mean vector of the initial state distribution in world frame
     covariance : ndarray
         Covariance matrix of the initial state distribution.
-    track_id : int
-        A unique track identifier.
-    n_init : int
+    track_id : array (N,) 
+        A unique track identifier for all detections
+    n_init : array (N,)
         Number of consecutive detections before the track is confirmed. The
         track state is set to `Deleted` if a miss occurs within the first
         `n_init` frames.
-    max_age : int
+    max_age : array (N,)
         The maximum number of consecutive misses before the track state is
         set to `Deleted`.
-    feature : Optional[ndarray]
-        Feature vector of the detection this track originates from. If not None,
-        this feature is added to the `features` cache.
+    confidence : ndarray (N,)
 
     Attributes
     ----------
-    mean : ndarray
-        Mean vector of the initial state distribution.
+    mean_2D : ndarray
+        Mean vector of the initial state distribution in image plane
+    mean_3D : ndarray
+        Mean vector of the initial state distribution in world frame
     covariance : ndarray
         Covariance matrix of the initial state distribution.
-    track_id : int
+    track_id : ndarray
         A unique track identifier.
-    hits : int
+    hits : ndarray
         Total number of measurement updates.
-    age : int
+    age : ndarray
         Total number of frames since first occurance.
-    time_since_update : int
+    time_since_update : nndarray
         Total number of frames since last measurement update.
-    state : TrackState
-        The current track state.
-    features : List[ndarray]
-        A cache of features. On each measurement update, the associated feature
-        vector is added to this list.
-
+    state : TrackState ndarray
+        The current track state of all the tracks
     """
 
-    def __init__(self, mean, covariance, track_id, n_init, max_age, confidence,
-                 feature=None, class_name=None,points_3D=None,mean_3D=None,covariance_3D=None):
-        self.mean = mean
-        self.covariance = covariance
+    def __init__(self, mean_2D=None, mean_3D=None,covariance_3D=None, track_id=None, n_init=None, max_age=None, confidence=None,
+                  class_name=None, initialized=False):
+        self.mean_2D = mean_2D
+        self.mean_3D=mean_3D
+        self.covariance_3D = covariance_3D
         self.track_id = track_id
-        self.hits = 1
-        self.age = 1
-        self.time_since_update = 0
         self.confidence=confidence
 
-        self.state = TrackState.Tentative
-        self.features = []
-        if feature is not None:
-            self.features.append(feature)
-        
-        if points_3D is not None:
-            self.point_3D=points_3D
-            self.mean_3D=mean_3D
-            self.covariance_3D=covariance_3D
+        if initialized:
+            self.hits = np.ones(len(self.mean_3D))
+            self.age = np.ones(len(self.mean_3D))
+            self.time_since_update = np.zeros(len(self.mean_3D)-1)
+            self.state = np.array([TrackState.Tentative]*len(confidence))
+        else:
+            self.state=[]
 
         self._n_init = n_init
         self._max_age = max_age
         self.class_name = class_name
+        self.initialized=initialized
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
@@ -119,7 +114,7 @@ class Track:
     def get_class(self):
         return self.class_name
 
-    def predict(self, kf, length):
+    def predict(self, kf):
         """Propagate the state distribution to the current time step using a
         Kalman filter prediction step.
 
@@ -127,10 +122,9 @@ class Track:
         ----------
         kf : kalman_filter.KalmanFilter
             The Kalman filter.
-        length: number of detections
 
         """
-        self.mean, self.covariance = kf.predict(self.mean, self.covariance)
+        self.mean_3D, self.covariance_3D = kf.predict(self.mean_3D.flatten(), self.covariance_3D)
         self.age += 1
         self.time_since_update += 1
 
@@ -146,8 +140,8 @@ class Track:
             The associated detection.
 
         """
-        self.mean, self.covariance, self.mean_3D,self.covariance_3D = kf.update(
-            self.mean, self.covariance, detection.to_xyah(),self.mean_3D,self.covariance_3D,detection.points_3D)
+        self.mean_3D,self.covariance_3D = kf.update(
+            detection.to_xyah(),self.mean_3D,self.covariance_3D,detection.points_3D)
         self.features.append(detection.feature)
 
         self.hits += 1
@@ -155,25 +149,25 @@ class Track:
         if self.state == TrackState.Tentative and self.hits >= self._n_init:
             self.state = TrackState.Confirmed
 
-    def mark_missed(self):
+    def mark_missed(self,i):
         """Mark this track as missed (no association at the current time step).
         """
-        if self.state == TrackState.Tentative:
-            self.state = TrackState.Deleted
+        if self.state[i] == TrackState.Tentative:
+            self.state[i] = TrackState.Deleted
         # if self.state==TrackState.Confirmed:
         #     self.state==TrackState.Tentative
-        elif self.time_since_update > self._max_age:
-            self.state = TrackState.Deleted
+        elif self.time_since_update[i] > self._max_age[i]:
+            self.state[i] = TrackState.Deleted
 
-    def is_tentative(self):
+    def is_tentative(self,i):
         """Returns True if this track is tentative (unconfirmed).
         """
-        return self.state == TrackState.Tentative
+        return self.state[i] == TrackState.Tentative
 
-    def is_confirmed(self):
+    def is_confirmed(self,i):
         """Returns True if this track is confirmed."""
-        return self.state == TrackState.Confirmed
+        return self.state[i] == TrackState.Confirmed
 
-    def is_deleted(self):
+    def is_deleted(self,i):
         """Returns True if this track is dead and should be deleted."""
-        return self.state == TrackState.Deleted
+        return self.state[i] == TrackState.Deleted

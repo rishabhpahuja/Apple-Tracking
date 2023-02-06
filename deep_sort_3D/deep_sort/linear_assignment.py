@@ -45,15 +45,16 @@ def min_cost_matching(
 
     """
     if track_indices is None:
-        track_indices = np.arange(len(tracks))
+        track_indices = np.arange(len(detections.points_2D)-1)
     if detection_indices is None:
-        detection_indices = np.arange(len(detections))
+        detection_indices = np.arange(len(detections.points_2D)-1)
 
     if len(detection_indices) == 0 or len(track_indices) == 0:
         return [], track_indices, detection_indices  # Nothing to match.
 
+    import ipdb; ipdb.set_trace()
     cost_matrix = distance_metric(
-        tracks, detections, track_indices, detection_indices)
+        tracks, detections, track_indices)
     cost_matrix[cost_matrix > max_distance] = max_distance + 1e-5
     indices = linear_sum_assignment(cost_matrix) #Link the detection to tracker
     indices = np.asarray(indices) #Makes a 2D array with row at indices at row 0 and column indices at row 1
@@ -117,20 +118,20 @@ def matching_cascade(
     """
     # import ipdb; ipdb.set_trace()
     if track_indices is None:
-        track_indices = list(range(len(tracks)))
+        track_indices = list(range(len(detections.points_2D)-1))
     if detection_indices is None:
-        detection_indices = list(range(len(detections.points_2D)))
+        detection_indices = list(range(len(detections.points_2D)-1))
 
     unmatched_detections = detection_indices
     matches = []
-    # import ipdb;ipdb.set_trace()
+    import ipdb;ipdb.set_trace()
     for level in range(cascade_depth):
         if len(unmatched_detections) == 0:  # No detections left
             break
 
         track_indices_l = [
             k for k in track_indices
-            if tracks[k].time_since_update == 1 + level
+            if tracks.time_since_update[k] == 1 + level
         ]
         if len(track_indices_l) == 0:  # Nothing to match at this level
             continue

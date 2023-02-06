@@ -54,9 +54,10 @@ class KalmanFilter(object):
 
     def init_matrix(self, length):
 
-        self.motion_mat=np.ones(3,length)
+        self.motion_mat=np.eye(3,length)
+        self.jac_mat=np.eye(length,length)
 
-        return self.motion_mat
+        return self.motion_mat, self.jac_mat
     
     def initiate(self, measurement, indices=None):
         """Create track from unassociated measurement.
@@ -75,9 +76,9 @@ class KalmanFilter(object):
 
         """
         # import ipdb;ipdb.set_trace()
-        mean = measurement[3:].reshape((-1,3))[indices]
+        mean = measurement.reshape((-1,3))[indices]
         # mean[4]=-33
-        covariance = np.zeros(mean.shape)
+        covariance = np.zeros((3*len(mean),3*len(mean)+3))
     
         return mean, covariance
 
@@ -101,16 +102,19 @@ class KalmanFilter(object):
 
         """
         std_pos = [self._std_weight_position,self._std_weight_position,self._std_weight_position]  
-        motion_model=self.init_matrix(len(mean))
+        motion_model, jac_mat =self.init_matrix(len(mean))
+
+        # import ipdb;ipdb.set_trace()
 
         motion_cov=np.eye(len(mean),len(mean))
         motion_cov[:3,:3] = np.diag(np.square(std_pos))
 
-        mean = mean+np.dot(motion_model, self.v)
+        mean = mean+np.dot(motion_model.T, self.v)
+        # import ipdb; ipdb.set_trace()
         covariance = np.linalg.multi_dot((
-            motion_model, covariance, motion_model.T)) + motion_cov #P_{n+1,n}
+            jac_mat, covariance, jac_mat.T)) + motion_cov #P_{n+1,n}
 
-        return mean, covariance
+        return mean.reshape((-1,3)), covariance
 
     def project(self, mean, covariance):
         """Project state distribution to measurement space.

@@ -1,5 +1,6 @@
 # vim: expandtab:ts=4:sw=4
 import numpy as np
+import scipy.linalg
 
 
 def _pdist(a, b):
@@ -56,7 +57,14 @@ def _cosine_distance(a, b, data_is_normalized=False):
 def _nn_mahalanobis_distance(mean, covariance, measurements):
 
 
-    pass
+    cholesky_factor = np.linalg.cholesky(covariance)
+    # import ipdb; ipdb.set_trace()
+    d = measurements - mean
+    z = scipy.linalg.solve_triangular(
+        cholesky_factor, d.T, lower=True, check_finite=False,
+        overwrite_b=True)
+    squared_maha = np.sum(z * z, axis=0) #shape: (10,1), means squred maha distance of one track with all detections
+    return squared_maha
 
 
 def _nn_euclidean_distance(x, y):
@@ -141,33 +149,14 @@ class NearestNeighborDistanceMetric(object):
         self.budget = budget
         self.samples = {}
 
-    def partial_fit(self, features, targets, active_targets):
-        """Update the distance metric with new data.
-
-        Parameters
-        ----------
-        features : ndarray
-            An NxM matrix of N features of dimensionality M.
-        targets : ndarray
-            An integer array of associated target identities.
-        active_targets : List[int]
-            A list of targets that are currently present in the scene.
-
-        """
-        for feature, target in zip(features, targets):
-            self.samples.setdefault(target, []).append(feature)
-            if self.budget is not None:
-                self.samples[target] = self.samples[target][-self.budget:]
-        self.samples = {k: self.samples[k] for k in active_targets}
-
-    def distance(self, features, targets):
+    def distance(self, detections, tracks):
         """Compute distance between features and targets.
 
         Parameters
         ----------
-        features : ndarray
+        features (detections) : ndarray
             An NxM matrix of N features of dimensionality M.
-        targets : List[int]
+        targets (tracks): List[int]
             A list of targets to match the given `features` against.
 
         Returns
