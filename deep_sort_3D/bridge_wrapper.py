@@ -52,7 +52,7 @@ class YOLOv8_SORT_3D:
     '''
     Class to Wrap ANY detector  of YOLO type with DeepSORT
     '''
-    def __init__(self, detector, segment,disparity,nn_budget:float=None, nms_max_overlap:float=1.0, base_coordinate=np.array([0,0,0]),vel=np.array([20,0,0]),
+    def __init__(self, detector, segment,disparity,nn_budget:float=None, nms_max_overlap:float=1.0, base_coordinate=np.array([0,0,0]),vel=np.array([10,0,0]),
                     _st_weight_position=2 ):
         '''
         args: 
@@ -133,9 +133,15 @@ class YOLOv8_SORT_3D:
             ######################### Generating disparity point mask #####################################
             point_disparity=np.where(point_mask==255,disparity,disparity*0)
             points_3d=ut.obtain_3d_volume(point_disparity,frame_left,save_file=True, frame_num=frame_num)
-            points_3d=self.base_cord-points_3d
+            # import ipdb; ipdb.set_trace()
+            if frame_num!=1:
+                points_3d=self.rover_detec(self.base_cord)+points_3d
+            else: 
+                points_3d=self.base_cord+points_3d
+
             yolo_dets=yolo_dets[pos==1] #Removing detection which do not have a segmented apple inside the fruit
             scores=scores[pos==1]
+
 
             names=np.array(["Apple"]*len(yolo_dets))
 
@@ -149,7 +155,9 @@ class YOLOv8_SORT_3D:
 
             ######################################### SORT_3D ##############################################
             # import ipdb;ipdb.set_trace()
-            position_3D=np.vstack((self.rover_detec(self.base_cord),points_3d))
+
+            position_3D=np.vstack((self.base_cord,points_3d))
+
             detections = Detection(yolo_dets, scores, names,  position_3D.flatten()) # detection object for rover and all the apples
 
             if frame_num!=1:

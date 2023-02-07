@@ -72,7 +72,7 @@ class Track:
         if initialized:
             self.hits = np.ones(len(self.mean_3D))
             self.age = np.ones(len(self.mean_3D))
-            self.time_since_update = np.zeros(len(self.mean_3D)-1)
+            self.time_since_update = np.zeros(len(self.mean_3D))
             self.state = np.array([TrackState.Tentative]*len(confidence))
         else:
             self.state=[]
@@ -128,7 +128,7 @@ class Track:
         self.age += 1
         self.time_since_update += 1
 
-    def update(self, kf, detection):
+    def update(self, kf, detection, index):
         """Perform Kalman filter measurement update step and update the feature
         cache.
 
@@ -145,8 +145,8 @@ class Track:
         self.features.append(detection.feature)
 
         self.hits += 1
-        self.time_since_update = 0
-        if self.state == TrackState.Tentative and self.hits >= self._n_init:
+        self.time_since_update[index] = 0
+        if self.state[index] == TrackState.Tentative and self.hits >= self._n_init:
             self.state = TrackState.Confirmed
 
     def mark_missed(self,i):

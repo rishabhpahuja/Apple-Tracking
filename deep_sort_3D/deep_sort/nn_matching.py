@@ -58,12 +58,12 @@ def _nn_mahalanobis_distance(mean, covariance, measurements):
 
 
     cholesky_factor = np.linalg.cholesky(covariance)
-    # import ipdb; ipdb.set_trace()
     d = measurements - mean
+    # import ipdb; ipdb.set_trace()
     z = scipy.linalg.solve_triangular(
         cholesky_factor, d.T, lower=True, check_finite=False,
         overwrite_b=True)
-    squared_maha = np.sum(z * z, axis=0) #shape: (10,1), means squred maha distance of one track with all detections
+    squared_maha = np.sum(z * z, axis=0) #shape: (10,1), means squared maha distance of one track with all detections
     return squared_maha
 
 
@@ -141,7 +141,7 @@ class NearestNeighborDistanceMetric(object):
         elif metric == "cosine":
             self._metric = _nn_cosine_distance
         elif metric=="mahalanobis":
-            self.metric=_nn_mahalanobis_distance
+            self._metric=_nn_mahalanobis_distance
         else:
             raise ValueError(
                 "Invalid metric; must be either 'euclidean' or 'cosine'")
@@ -149,7 +149,7 @@ class NearestNeighborDistanceMetric(object):
         self.budget = budget
         self.samples = {}
 
-    def distance(self, detections, tracks):
+    def distance(self, detections, tracks,track_indices):
         """Compute distance between features and targets.
 
         Parameters
@@ -167,7 +167,11 @@ class NearestNeighborDistanceMetric(object):
             `targets[i]` and `features[j]`.
 
         """
-        cost_matrix = np.zeros((len(targets), len(features)))
-        for i, target in enumerate(targets):
-            cost_matrix[i, :] = self._metric(self.samples[target], features)
+        import ipdb; ipdb.set_trace()
+        cost_matrix = np.zeros((len(tracks.mean_3D)-1, len(detections.reshape((-1,3)))-1))
+        for row_num,i in enumerate(track_indices):
+            track=tracks.mean_3D[i]
+            cov=tracks.covariance_3D[3*i:3*i+3,3*i:3*i+3]
+            cost_matrix[row_num, :] = self._metric(track, cov,detections[1:])
+        ipdb.set_trace()
         return cost_matrix

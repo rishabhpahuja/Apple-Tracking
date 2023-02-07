@@ -106,9 +106,9 @@ class KalmanFilter(object):
 
         # import ipdb;ipdb.set_trace()
 
-        motion_cov=np.eye(len(mean),len(mean))
+        motion_cov=np.eye(len(mean),len(mean))*20
         motion_cov[:3,:3] = np.diag(np.square(std_pos))
-
+        # import ipdb; ipdb.set_trace()
         mean = mean+np.dot(motion_model.T, self.v)
         # import ipdb; ipdb.set_trace()
         covariance = np.linalg.multi_dot((

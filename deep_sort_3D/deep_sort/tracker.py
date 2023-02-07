@@ -48,7 +48,7 @@ class Tracker:
         self.mean_3D=mean
         self.covariance_3D=np.array([_st_weight_position,_st_weight_position,_st_weight_position])
         self.mean_2D=np.array([[0,0,0,0]])
-        self.confidence=np.array([])
+        self.confidence=np.array([0])
 
     def predict(self):
         """Propagate track state distributions one time step forward.
@@ -75,7 +75,7 @@ class Tracker:
         # Update track set.
         for track_idx, detection_idx in matches:
             self.tracks[track_idx].update(
-                self.kf, detections[detection_idx])
+                self.kf, detections[detection_idx],track_idx)
         for i,track_idx in enumerate(unmatched_tracks):
             self.tracks.mark_missed(i)
         # import ipdb;ipdb.set_trace()
@@ -94,10 +94,9 @@ class Tracker:
         '''
 
         def gated_metric(tracks, dets, track_indices):
-            detection = dets.point_3D
-            targets = np.array([tracks.points_3D[i] for i in track_indices])
             import ipdb; ipdb.set_trace()
-            cost_matrix = self.metric.distance(detection, targets, track_indices)
+            detection = dets.points_3D.reshape((-1,3))
+            cost_matrix = self.metric.distance(detection, tracks, track_indices)
 
             return cost_matrix
 
@@ -105,18 +104,18 @@ class Tracker:
         # import ipdb;ipdb.set_trace()
 
         
+        # confirmed_tracks = [
+        #     i for i in range(len(self.tracks.state)) if self.tracks.is_confirmed(i)]
+        # unconfirmed_tracks = [
+        #     i for i in range(len(self.tracks.state)) if not self.tracks.is_confirmed(i)] #Unmatched tracks from previous frame
         # import ipdb; ipdb.set_trace()
-        confirmed_tracks = [
-            i for i in range(len(self.tracks.state)) if self.tracks.is_confirmed(i)]
-        unconfirmed_tracks = [
-            i for i in range(len(self.tracks.state)) if not self.tracks.is_confirmed(i)] #Unmatched tracks from previous frame
 
         # Associate confirmed tracks using appearance features.
         matches, unmatched_tracks, unmatched_detections = linear_assignment.matching_cascade(
                 gated_metric, self.metric.matching_threshold, self.max_age,
-                self.tracks, detections, confirmed_tracks)
+                self.tracks, detections)
         # import ipdb; ipdb.set_trace()
-        unmatched_tracks = list(set(unmatched_tracks + unconfirmed_tracks))
+        # unmatched_tracks = list(set(unmatched_tracks + unconfirmed_tracks))
         return matches, unmatched_tracks, unmatched_detections
 
     def _initiate_track(self, detection, unmatched_detections):
@@ -126,9 +125,15 @@ class Tracker:
         '''
         
         mean, covariance = self.kf.initiate(detection.points_3D,unmatched_detections)
-        # import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()        
         if self.covariance_3D.ndim==1:
             self.covariance_3D=np.eye(3,3*len(mean)+3)*self.covariance_3D[0]
+        else:
+            if covariance.shape[1]<self.covariance_3D.shape[1]:
+                covariance=np.hstack((covariance,np.zeros((covariance.shape[0],self.covariance_3D.shape[1]-covariance.shape[1]))))
+            elif covariance.shape[1]>self.covariance_3D.shape[1]:
+                self.covariance_3D=np.hstack((self.covariance_3D,np.zeros((self.covariance_3D.shape[0],covariance.shape[1]-self.covariance_3D.shape[1]))))
+
         self.covariance_3D=np.vstack((self.covariance_3D,covariance))
         self.mean_3D=np.vstack((self.mean_3D,mean))
 
@@ -137,7 +142,6 @@ class Tracker:
         self._next_id=np.arange(len(self.confidence))
         class_name = detection.get_class()
 
-        import ipdb; ipdb.set_trace()        
         self.tracks=Track(
             mean_2D=self.mean_2D, mean_3D=self.mean_3D,covariance_3D=self.covariance_3D, track_id=self._next_id, n_init=np.ones(len(self.confidence))*self.n_init,
              max_age=np.ones(len(self.confidence))*self.max_age,class_name=class_name,confidence=self.confidence,initialized=True)
