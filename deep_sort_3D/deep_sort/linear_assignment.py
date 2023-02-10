@@ -24,10 +24,8 @@ def min_cost_matching(
     max_distance : float
         Gating threshold. Associations with cost larger than this value are
         disregarded.
-    tracks : List[track.Track]
-        A list of predicted tracks at the current time step.
-    detections : List[detection.Detection]
-        A list of detections at the current time step.
+    tracks : Track object
+    detections : Detection object
     track_indices : List[int]
         List of track indices that maps rows in `cost_matrix` to tracks in
         `tracks` (see description above).
@@ -74,6 +72,7 @@ def min_cost_matching(
             unmatched_detections.append(detection_idx)
         else:
             matches.append((track_idx, detection_idx))
+    # import ipdb; ipdb.set_trace()
     return matches, unmatched_tracks, unmatched_detections
 
 
@@ -116,19 +115,19 @@ def matching_cascade(
         * A list of unmatched detection indices.
 
     """
-    # import ipdb; ipdb.set_trace()
     if track_indices is None:
         # import ipdb; ipdb.set_trace()
         if tracks.mean_3D is None: #To check it is the first frame
             track_indices=[]
         else:
-            track_indices = list(range(len(tracks.mean_3D)))[1:]
+            track_indices = list(range(len(tracks.mean_3D)))[1:] #leavingout rover coordinates
     if detection_indices is None:
-        detection_indices = list(range(len(detections.points_2D)))[1:]
+        detection_indices = list(range(len(detections.points_3D)))[1:] #Leaving out rover detections
 
+    # import ipdb; ipdb.set_trace()
     unmatched_detections = detection_indices
     matches = []
-    # import ipdb;ipdb.set_trace()
+
     for level in range(cascade_depth):
         if len(unmatched_detections) == 0:  # No detections left
             break
@@ -143,7 +142,7 @@ def matching_cascade(
         matches_l, _, unmatched_detections = \
             min_cost_matching(
                 distance_metric, max_distance, tracks, detections,
-                track_indices_l, unmatched_detections)
+                track_indices=track_indices_l, detection_indices=unmatched_detections)
         matches += matches_l
     unmatched_tracks = list(set(track_indices) - set(k for k, _ in matches)) 
     # import ipdb; ipdb.set_trace()

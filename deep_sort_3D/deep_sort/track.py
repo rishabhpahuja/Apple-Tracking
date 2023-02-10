@@ -128,7 +128,7 @@ class Track:
         self.age += 1
         self.time_since_update += 1
 
-    def update(self, kf, detection, index):
+    def update(self, kf, detections,matches):
         """Perform Kalman filter measurement update step and update the feature
         cache.
 
@@ -141,21 +141,22 @@ class Track:
 
         """
         self.mean_3D,self.covariance_3D = kf.update(
-            detection.to_xyah(),self.mean_3D,self.covariance_3D,detection.points_3D)
-        self.features.append(detection.feature)
-
-        self.hits += 1
-        self.time_since_update[index] = 0
-        if self.state[index] == TrackState.Tentative and self.hits >= self._n_init:
-            self.state = TrackState.Confirmed
+            detections,self.mean_3D,self.covariance_3D,matches)
+        matches=np.vstack((matches))
+        self.hits[matches[:,0]] += 1
+        self.time_since_update[matches[:,0]] = 0
+        ############################################
+        for x,y in matches:
+            # import ipdb; ipdb.set_trace()
+            if self.state[x]==TrackState.Tentative and self.hits[x]>=self._n_init:
+                self.state[x]=TrackState.Confirmed
 
     def mark_missed(self,i):
         """Mark this track as missed (no association at the current time step).
         """
         if self.state[i] == TrackState.Tentative:
             self.state[i] = TrackState.Deleted
-        # if self.state==TrackState.Confirmed:
-        #     self.state==TrackState.Tentative
+
         elif self.time_since_update[i] > self._max_age[i]:
             self.state[i] = TrackState.Deleted
 

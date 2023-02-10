@@ -38,17 +38,7 @@ class KalmanFilter(object):
     """
 
     def __init__(self,v,_st_weight_postion):
-        ndim,ndim_3D, dt = 4, 3, 1.
-
-        # Create Kalman filter model matrices.
-        # self.vel=np.array([20,0,0])
-        #To find obersvation states
-        self._update_mat = np.eye(ndim, 2 * ndim) #4,8
-        self._update_mat_3D = np.eye(ndim_3D, 2*ndim_3D)
-
-        # Motion and observation uncertainty are chosen relative to the current
-        # state estimate. These weights control the amount of uncertainty in
-        # the model. This is a bit hacky.
+    
         self._std_weight_position = _st_weight_postion
         self.v=v
 
@@ -75,10 +65,8 @@ class KalmanFilter(object):
             to 0 mean.
 
         """
-        # import ipdb;ipdb.set_trace()
-        mean = measurement.reshape((-1,3))[indices]
-        # mean[4]=-33
-        covariance = np.zeros((3*len(mean),3*len(mean)+3))
+        mean = measurement[indices]
+        covariance = np.eye(3*len(mean),3*len(mean))
     
         return mean, covariance
 
@@ -106,9 +94,8 @@ class KalmanFilter(object):
 
         # import ipdb;ipdb.set_trace()
 
-        motion_cov=np.eye(len(mean),len(mean))*20
+        motion_cov=np.zeros((len(mean),len(mean)))
         motion_cov[:3,:3] = np.diag(np.square(std_pos))
-        # import ipdb; ipdb.set_trace()
         mean = mean+np.dot(motion_model.T, self.v)
         # import ipdb; ipdb.set_trace()
         covariance = np.linalg.multi_dot((
@@ -116,7 +103,34 @@ class KalmanFilter(object):
 
         return mean.reshape((-1,3)), covariance
 
-    def project(self, mean, covariance):
+    def innovation_matrix(self, nos):
+        '''
+        nos: int
+            number of tracks to be updated
+
+        '''
+
+        diag_matrix=np.eye(3*nos-3,3*nos-3)
+        first_row=np.zeros((3,3*nos-3)).flatten()
+        first_column=np.zeros((3*nos-3,3)).flatten()
+        for i in range(3*(3*nos-3)):
+            if i%4==0 or i%4==1:
+                first_row[i]=self._std_weight_position
+                first_column[i]=self._std_weight_position
+            
+        # import ipdb; ipdb.set_trace()
+        first_row=first_row.reshape((3,-1))
+        first_column=first_column.reshape((-1,3))
+        rover_mat=np.eye(3,3)*self._std_weight_position*1.5
+        inn_mat=np.vstack((np.hstack((rover_mat,first_row)),
+                            np.hstack((first_column,diag_matrix))))
+                
+        return inn_mat
+
+    def get_H_matrix():
+        pass
+    
+    def project(self, mean, covariance,matches,h_matrix):
         """Project state distribution to measurement space.
 
         Parameters
@@ -133,19 +147,14 @@ class KalmanFilter(object):
             estimate.
 
         """
-        std = [
-            2*self._std_weight_position * mean[3],
-            2*self._std_weight_position * mean[3],
-            1e-1,
-            2*self._std_weight_position * mean[3]]
-        innovation_cov = np.diag(np.square(std)) #R
-        # import ipdb; ipdb.set_trace()
-        mean = np.dot(self._update_mat, mean) #H*x_n_cap, shows the observation, the states we are interested in
+        
+        innovation_cov =np.square(self.innovation_matrix(len(mean))) #R
+        mean = np.dot(h_matrix, mean.flatten()) #H*x_n_cap, shows the observation, the states we are interested in
         covariance = np.linalg.multi_dot((
-            self._update_mat, covariance, self._update_mat.T)) #(H*P_n_cap*H.T)
-        return mean, covariance + innovation_cov #(H*P_n_cap*H.T+R)
+            h_matrix, covariance, h_matrix.T)) #(H*P_n_cap*H.T)
+        return mean.reshape((-1,3)), covariance + innovation_cov #(H*P_n_cap*H.T+R)
 
-    def update(self, mean, covariance, measurement, mean_3D,covariance_3D,measurement_3D):
+    def update(self, measurement,mean, covariance,matches):
         """Run Kalman filter correction step.
 
         Parameters
@@ -165,33 +174,29 @@ class KalmanFilter(object):
             Returns the measurement-corrected state distribution.
 
         """
-        projected_mean, projected_cov = self.project(mean, covariance) #predicted state from H*x_n_cap, (H*P_n_cap*H.T+Q)
-        projected_mean_3D, projected_cov_3D = self.project_3D(mean_3D, covariance_3D) #predicted state from H*x_n_cap, (H*P_n_cap*H.T+R)
+        matches=np.vstack((np.array([0,0]),matches))
+        h_matrix=np.eye(len(mean.flatten()),len(mean.flatten()))
+        projected_mean, projected_cov = self.project(mean, covariance,matches,h_matrix) #predicted state from H*x_n_cap, (H*P_n_cap*H.T+Q)
+        for x,y in matches:
+            mean[x]=projected_mean[x]
+            covariance[3*x:3*x+3,3*x:3*x+3]=projected_cov[3*x:3*x+3,3*x:3*x+3]
         # import ipdb; ipdb.set_trace()
-        chol_factor, lower = scipy.linalg.cho_factor(
-            projected_cov, lower=True, check_finite=False)
-        chol_factor_3D, lower_3D = scipy.linalg.cho_factor(
-            projected_cov_3D, lower=True, check_finite=False)
-        
-        kalman_gain = scipy.linalg.cho_solve(
-            (chol_factor, lower), np.dot(covariance, self._update_mat.T).T,
-            check_finite=False).T
-        kalman_gain_3D = scipy.linalg.cho_solve(
-            (chol_factor_3D, lower_3D), np.dot(covariance_3D, self._update_mat_3D.T).T,
-            check_finite=False).T
+            chol_factor, lower = scipy.linalg.cho_factor(
+                projected_cov[3*x:3*x+3,3*x:3*x+3], lower=True, check_finite=False)
+            
+            kalman_gain = scipy.linalg.cho_solve(
+                (chol_factor, lower), np.dot(covariance[3*x:3*x+3,3*x:3*x+3], h_matrix[3*x:3*x+3,3*x:3*x+3]).T,
+                check_finite=False).T
 
-        innovation = measurement - projected_mean
-        innovation_3D = measurement_3D - projected_mean_3D
+            innovation = measurement.points_3D[y] - projected_mean[x]
 
-        new_mean = mean + np.dot(innovation, kalman_gain.T)
-        new_mean_3D = mean_3D + np.dot(innovation_3D, kalman_gain_3D.T)
+            mean[x] = mean[x] + np.dot(innovation, kalman_gain.T)
 
-        new_covariance = covariance - np.linalg.multi_dot((
-            kalman_gain, projected_cov, kalman_gain.T))
-        new_covariance_3D = covariance_3D - np.linalg.multi_dot((
-            kalman_gain_3D, projected_cov_3D, kalman_gain_3D.T))
+            covariance[3*x:3*x+3,3*x:3*x+3] = covariance[3*x:3*x+3,3*x:3*x+3] - np.linalg.multi_dot((
+                kalman_gain, projected_cov[3*x:3*x+3,3*x:3*x+3], kalman_gain.T))
 
-        return new_mean, new_covariance, new_mean_3D, new_covariance_3D
+
+        return mean, covariance
 
     def gating_distance(self, mean, covariance, measurements,
                         only_position=False):
