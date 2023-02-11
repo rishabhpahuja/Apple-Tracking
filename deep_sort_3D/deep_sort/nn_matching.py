@@ -173,7 +173,7 @@ class NearestNeighborDistanceMetric(object):
             track=tracks.mean_3D[i]
             cov=tracks.covariance_3D[3*i:3*i+3,3*i:3*i+3]
             cost_matrix[row_num, :] = self._metric(track, cov,detections[1:])
-        # ipdb.set_trace()
+            # import ipdb;ipdb.set_trace()
         return cost_matrix
 
 

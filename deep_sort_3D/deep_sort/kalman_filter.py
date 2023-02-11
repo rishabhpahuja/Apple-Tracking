@@ -44,8 +44,8 @@ class KalmanFilter(object):
 
     def init_matrix(self, length):
 
-        self.motion_mat=np.eye(3,length)
-        self.jac_mat=np.eye(length,length)
+        self.motion_mat=np.eye(3,length,dtype=float)
+        self.jac_mat=np.eye(length,length,dtype=float)
 
         return self.motion_mat, self.jac_mat
     
@@ -66,7 +66,7 @@ class KalmanFilter(object):
 
         """
         mean = measurement[indices]
-        covariance = np.eye(3*len(mean),3*len(mean))
+        covariance = np.eye(3*len(mean),3*len(mean),dtype=float)*self._std_weight_position*2
     
         return mean, covariance
 
@@ -94,13 +94,13 @@ class KalmanFilter(object):
 
         # import ipdb;ipdb.set_trace()
 
-        motion_cov=np.zeros((len(mean),len(mean)))
+        motion_cov=np.zeros((len(mean),len(mean)),dtype=float)
         motion_cov[:3,:3] = np.diag(np.square(std_pos))
         mean = mean+np.dot(motion_model.T, self.v)
         # import ipdb; ipdb.set_trace()
         covariance = np.linalg.multi_dot((
             jac_mat, covariance, jac_mat.T)) + motion_cov #P_{n+1,n}
-
+        # import ipdb;ipdb.set_trace()
         return mean.reshape((-1,3)), covariance
 
     def innovation_matrix(self, nos):
@@ -110,9 +110,9 @@ class KalmanFilter(object):
 
         '''
 
-        diag_matrix=np.eye(3*nos-3,3*nos-3)
-        first_row=np.zeros((3,3*nos-3)).flatten()
-        first_column=np.zeros((3*nos-3,3)).flatten()
+        diag_matrix=np.eye(3*nos-3,3*nos-3,dtype=float)
+        first_row=np.zeros((3,3*nos-3),dtype=float).flatten()
+        first_column=np.zeros((3*nos-3,3),dtype=float).flatten()
         for i in range(3*(3*nos-3)):
             if i%4==0 or i%4==1:
                 first_row[i]=self._std_weight_position
@@ -121,14 +121,11 @@ class KalmanFilter(object):
         # import ipdb; ipdb.set_trace()
         first_row=first_row.reshape((3,-1))
         first_column=first_column.reshape((-1,3))
-        rover_mat=np.eye(3,3)*self._std_weight_position*1.5
+        rover_mat=np.eye(3,3,dtype=float)*self._std_weight_position*1.5
         inn_mat=np.vstack((np.hstack((rover_mat,first_row)),
                             np.hstack((first_column,diag_matrix))))
                 
         return inn_mat
-
-    def get_H_matrix():
-        pass
     
     def project(self, mean, covariance,matches,h_matrix):
         """Project state distribution to measurement space.
@@ -174,12 +171,13 @@ class KalmanFilter(object):
             Returns the measurement-corrected state distribution.
 
         """
+        # import ipdb; ipdb.set_trace()
         matches=np.vstack((np.array([0,0]),matches))
-        h_matrix=np.eye(len(mean.flatten()),len(mean.flatten()))
+        h_matrix=np.eye(len(mean.flatten()),len(mean.flatten()),dtype=float)
         projected_mean, projected_cov = self.project(mean, covariance,matches,h_matrix) #predicted state from H*x_n_cap, (H*P_n_cap*H.T+Q)
         for x,y in matches:
-            mean[x]=projected_mean[x]
-            covariance[3*x:3*x+3,3*x:3*x+3]=projected_cov[3*x:3*x+3,3*x:3*x+3]
+            # mean[x]=projected_mean[x]
+            # covariance[3*x:3*x+3,3*x:3*x+3]=projected_cov[3*x:3*x+3,3*x:3*x+3]
         # import ipdb; ipdb.set_trace()
             chol_factor, lower = scipy.linalg.cho_factor(
                 projected_cov[3*x:3*x+3,3*x:3*x+3], lower=True, check_finite=False)
@@ -194,7 +192,7 @@ class KalmanFilter(object):
 
             covariance[3*x:3*x+3,3*x:3*x+3] = covariance[3*x:3*x+3,3*x:3*x+3] - np.linalg.multi_dot((
                 kalman_gain, projected_cov[3*x:3*x+3,3*x:3*x+3], kalman_gain.T))
-
+        # import ipdb; ipdb.set_trace()
 
         return mean, covariance
 

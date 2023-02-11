@@ -15,7 +15,7 @@ class V8:
             self.model=YOLO(model_type)
             self.model=YOLO(model_path)
 
-    def pred(self, image, conf=0.15, iou=0.3, debug=False):
+    def pred(self, image, conf=0.20, iou=0.3, debug=False):
 
         # Predict with the model
         results = self.model(image,conf=conf,iou=iou)  # predict on an image

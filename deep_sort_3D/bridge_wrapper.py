@@ -53,7 +53,7 @@ class YOLOv8_SORT_3D:
     Class to Wrap ANY detector  of YOLO type with DeepSORT
     '''
     def __init__(self, detector, segment,disparity,nn_budget:float=None, nms_max_overlap:float=1.0, base_coordinate=np.array([0,0,0]),vel=np.array([10,0,0]),
-                    _st_weight_position=2 ):
+                    _st_weight_position=10.0 ):
         '''
         args: 
             detector: object of YOLO models or any model which gives you detections as [x1,y1,x2,y2,scores, class]
@@ -175,13 +175,13 @@ class YOLOv8_SORT_3D:
             # continue
             if len(matches)!=0:
                 matches=np.vstack((matches))
-            else:
-                continue
+            
+            # self.base_cord=self.tracker.tracks.mean_3D[0]
             for match in matches:  # update new findings AKA tracks                
                 
                 # if not self.tracker.tracks.is_confirmed(track) or self.tracker.tracks.time_since_update[track] > 1:
                 #     continue 
-                bbox = self.tracker.tracks.mean_2D[match[0]]
+                bbox = detections.points_2D[match[1]]
                 class_name = 'Apple'
 
                 color = colors[int(self.tracker.tracks.track_id[match[0]]) % len(colors)]  # draw bbox on screen
@@ -224,8 +224,10 @@ class YOLOv8_SORT_3D:
                 print(name)
             elif frame_num>100:
                 name=frame_save_dir_path+'/0'+str(frame_num)+'_.png'
+                print(name)
             elif frame_num<10:
                 name=frame_save_dir_path+'/000'+str(frame_num)+'_.png'
+                print(name)
             cv2.imwrite(name,frame_left)
         cv2.destroyAllWindows()
 
