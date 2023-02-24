@@ -15,7 +15,7 @@ class V8:
             self.model=YOLO(model_type)
             self.model=YOLO(model_path)
 
-    def pred(self, image, conf=0.20, iou=0.3, debug=False):
+    def pred(self, image, conf=0.15, iou=0.2, debug=False, display=False):
 
         # Predict with the model
         results = self.model(image,conf=conf,iou=iou)  # predict on an image
@@ -24,14 +24,15 @@ class V8:
         # import ipdb; ipdb.set_trace()
         if debug:
             #Displaying all the boxes and scores on the image
-            for box,score in zip(boxes,results[0].boxes.conf.numpy()):
-                cv2.rectangle(image,(box[0],box[1]),(box[2],box[3]),(255,0,0),2)
+            for box,score in zip(boxes,results[0].boxes.conf.cpu().numpy()):
+                cv2.rectangle(image,(box[0],box[1]),(box[2],box[3]),(255,255,255),3)
                 cv2.putText(image,str(round(score,3)),(int(box[0]), int(box[1]-11)),0, 0.8, (255,255,255),2, lineType=cv2.LINE_AA)
 
-            cv2.namedWindow("Predicted Image",cv2.WINDOW_NORMAL)
-            cv2.imshow("Predicted Image",image)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-            cv2.imwrite('yolo_v8_score.png',image)
+            if display:
+                cv2.namedWindow("Predicted Image",cv2.WINDOW_NORMAL)
+                cv2.imshow("Predicted Image",image)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                cv2.imwrite('yolo_v8_score.png',image)
         
-        return boxes,scores
+        return boxes,scores,image

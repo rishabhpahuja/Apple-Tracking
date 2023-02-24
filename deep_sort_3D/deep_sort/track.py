@@ -62,7 +62,7 @@ class Track:
     """
 
     def __init__(self, mean_2D=None, mean_3D=None,covariance_3D=None, track_id=None, n_init=None, max_age=None, confidence=None,
-                  class_name=None, initialized=False):
+                  class_name=None, state=None,initialized=False):
         self.mean_2D = mean_2D
         self.mean_3D=mean_3D
         self.covariance_3D = covariance_3D
@@ -73,7 +73,7 @@ class Track:
             self.hits = np.ones(len(self.mean_3D))
             self.age = np.ones(len(self.mean_3D))
             self.time_since_update = np.zeros(len(self.mean_3D))
-            self.state = np.array([TrackState.Tentative]*len(confidence))
+            self.state = state
         else:
             self.state=[]
 
@@ -153,6 +153,8 @@ class Track:
             # import ipdb; ipdb.set_trace()
             if self.state[x]==TrackState.Tentative and self.hits[x]>=self._n_init:
                 self.state[x]=TrackState.Confirmed
+        
+        return self.mean_3D,self.covariance_3D,self.state
 
     def mark_missed(self,i):
         """Mark this track as missed (no association at the current time step).

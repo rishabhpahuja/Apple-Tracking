@@ -49,7 +49,7 @@ class KalmanFilter(object):
 
         return self.motion_mat, self.jac_mat
     
-    def initiate(self, measurement, indices=None):
+    def initiate(self, measurement, indices):
         """Create track from unassociated measurement.
 
         Parameters
@@ -240,4 +240,31 @@ class KalmanFilter(object):
         squared_maha = np.sum(z * z, axis=0) #shape: (10,1), means squred maha distance of one track with all detections
         return squared_maha
 
-    
+#%%
+# import numpy as np
+# P=np.array([[10,0,0,6,0,0],
+#             [0,10,0,0,6,0],
+#             [0,0,10,0,0,6],
+#             [6,0,0,5,0,0],
+#             [0,6,0,0,5,0],
+#             [0,0,6,0,0,5]] )
+# G=np.eye(6,6)
+# Q=np.array([[10,0,0,0,0,0],
+#             [0,10,0,0,0,0],
+#             [0,0,10,0,0,0],
+#             [0,0,0,0,0,0],
+#             [0,0,0,0,0,0],
+#             [0,0,0,0,0,0]] )
+# H=G
+# P_=G*P*G.T+Q
+
+# R=np.array([[10,0,0,0,0,0],
+#             [0,10,0,0,0,0],
+#             [0,0,10,0,0,0],
+#             [4,0,0,5,0,0],
+#             [0,4,0,0,5,0],
+#             [0,0,4,0,0,5]] )
+# K_=P_[3:6,3:6]*H[3:6,3:6]*(H[3:6,3:6]*P_[3:6,3:6]*H[3:6,3:6].T+R[3:6,3:6])
+# K=P_*H*(H*P_*H.T+R)
+# print(P_,'\n',K_,'\n',K)
+# %%

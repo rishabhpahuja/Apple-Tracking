@@ -189,7 +189,9 @@ def gate_cost_matrix(
     gating_threshold = kalman_filter.chi2inv95[gating_dim]
     measurements = np.asarray(
         [detections[i].to_xyah() for i in detection_indices])
+    import ipdb; ipdb.set_trace()
     for row, track_idx in enumerate(track_indices):
+        print("Finding cost matrix")
         track = tracks[track_idx]
         gating_distance = kf.gating_distance(
             track.mean, track.covariance, measurements, only_position)

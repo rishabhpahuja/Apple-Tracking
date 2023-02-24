@@ -121,31 +121,28 @@ class YOLOv8_SORT_3D:
             if verbose >= 1:start_time = time.time()
 
             ############################  Detection Model #############################################
-            yolo_dets,scores=self.detector.pred(frame_left.copy())       
+            yolo_dets,scores,_=self.detector.pred(frame_left,debug=False)       
                         
             ############################ Find 3D information ###########################################
             disparity=self.disparity.find_disparity(frame_left, frame_right)
             mask=self.segment.predict_img(cv2.cvtColor(frame_left,cv2.COLOR_BGR2RGB))
-            image, point_mask,pos=ut.find_center(yolo_dets, frame_left, mask, debug=False)
+            image, point_mask,yolo_dets,points_2D=ut.find_center(yolo_dets, frame_left, mask, debug=False)
+            # import ipdb; ipdb.set_trace()
             '''
             Image: Left frame showing fruit center and bounding boxes if debug=True        
-            pos: numpy array storing position of boxes which do not have a fruit
             '''
             ######################### Generating disparity point mask #####################################
             point_disparity=np.where(point_mask==255,disparity,disparity*0)
-            points_3d=ut.obtain_3d_volume(point_disparity,frame_left,save_file=False, frame_num=frame_num)
-            # import ipdb; ipdb.set_trace()
+            points_3d=ut.obtain_3d_volume(point_disparity,frame_left,points_2D,point_mask,save_file=True, frame_num=frame_num)
+
             if frame_num!=1:
                 points_3d=self.rover_detec(self.base_cord)+points_3d #Shifting 3D cordinates from rover to world origin
             else: 
                 points_3d=self.base_cord+points_3d
-
-            yolo_dets=yolo_dets[pos==1] #Removing detection which do not have a segmented apple inside the fruit
-            scores=scores[pos==1]
-
-
+   
             names=np.array(["Apple"]*len(yolo_dets))
-
+        
+            # import ipdb; ipdb.set_trace()
             if len(points_3d)!=len(yolo_dets): #Condition to check if all the bounding boxes have a fruit
                 print("*"*20,"STOPPING CODE","*"*20)
                 print("All boxes do not have a center point")
@@ -162,6 +159,7 @@ class YOLOv8_SORT_3D:
             scores=np.hstack((np.array([0]),scores))
             detections = Detection(yolo_dets, scores, names,  position_3D) # detection object for rover and all the apples
 
+            frame_left=ut.draw_boxes(img=frame_left,boxes=yolo_dets[1:],points_3d=position_3D[1:],frame_no=frame_num,save=True)
             if frame_num!=1:
                 self.tracker.predict()  # Call the tracker except for frame 1 since there is not tracker is made at the end of frame 1
             
@@ -171,12 +169,9 @@ class YOLOv8_SORT_3D:
             cmap = plt.get_cmap('tab20b') #initialize color map
             colors = [cmap(i)[:3] for i in np.linspace(0, 1, 20)]   
             
-            # import ipdb;ipdb.set_trace()
-            # continue
             if len(matches)!=0:
                 matches=np.vstack((matches))
             
-            # self.base_cord=self.tracker.tracks.mean_3D[0]
             for match in matches:  # update new findings AKA tracks                
                 
                 # if not self.tracker.tracks.is_confirmed(track) or self.tracker.tracks.time_since_update[track] > 1:
@@ -195,8 +190,8 @@ class YOLOv8_SORT_3D:
                 # import ipdb; ipdb.set_trace()
                 # print(bbox)
                 cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
-                cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(self.tracker.tracks.track_id[match[0]])))*30, int(bbox[1])), color, -1) #To make a solid rectangle box to write text on
-                cv2.putText(frame_left, class_name + ":" + str(self.tracker.tracks.track_id[match[0]])+'-'+str(round(self.tracker.tracks.confidence[match[0]],2)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)
+                # cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(self.tracker.tracks.track_id[match[0]])))*30, int(bbox[1])), color, -1) #To make a solid rectangle box to write text on
+                # cv2.putText(frame_left, class_name + ":" + str(self.tracker.tracks.track_id[match[0]])+'-'+str(round(self.tracker.tracks.confidence[match[0]],2)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)
                 # cv2.putText(frame_left, class_name + " " + str(track.track_id)+':'+str(round(ut.occlusion_score(bbox,mask),3)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)  
                 cv2.putText(frame_left, "Frame_num:"+str(frame_num),(len(frame_left[0])-300,len(frame_left)-100),0, 1.2, (255,255,255),2, lineType=cv2.LINE_AA)  
                 if verbose == 2:
@@ -237,5 +232,5 @@ class YOLOv8_SORT_3D:
         T=1
         M=np.array([[T,0,0],[0,T,0],[0,0,T]])
         noise= np.random.normal(0,1,3)
-        self.base_cord=pos.T + M@self.v + noise
+        self.base_cord=pos.T + M@self.v #+ noise
         return self.base_cord
