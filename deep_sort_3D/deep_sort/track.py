@@ -62,7 +62,7 @@ class Track:
     """
 
     def __init__(self, mean_2D=None, mean_3D=None,covariance_3D=None, track_id=None, n_init=None, max_age=None, confidence=None,
-                  class_name=None, state=None,initialized=False):
+                  class_name=None, state=None,initialized=False,hits=None,age=None,time_since_update=None):
         self.mean_2D = mean_2D
         self.mean_3D=mean_3D
         self.covariance_3D = covariance_3D
@@ -70,9 +70,9 @@ class Track:
         self.confidence=confidence
 
         if initialized:
-            self.hits = np.ones(len(self.mean_3D))
-            self.age = np.ones(len(self.mean_3D))
-            self.time_since_update = np.zeros(len(self.mean_3D))
+            self.hits = hits
+            # self.age = age
+            self.time_since_update = time_since_update
             self.state = state
         else:
             self.state=[]
@@ -121,15 +121,15 @@ class Track:
         Parameters
         ----------
         kf : kalman_filter.KalmanFilter
-            The Kalman filter.
+            The Kalman filter.np.ones(len(self.mean_3D))
 
         """
         self.mean_3D, self.covariance_3D = kf.predict(self.mean_3D.flatten(), self.covariance_3D)
         # import ipdb; ipdb.set_trace()
-        self.age += 1
+        # self.age += 1
         self.time_since_update += 1
 
-        return self.mean_3D,self.covariance_3D
+        return self.mean_3D,self.covariance_3D,self.time_since_update
 
     def update(self, kf, detections,matches):
         """Perform Kalman filter measurement update step and update the feature
@@ -143,18 +143,21 @@ class Track:
             The associated detection.
 
         """
+        # import ipdb; ipdb.set_trace()
         self.mean_3D,self.covariance_3D = kf.update(
             detections,self.mean_3D,self.covariance_3D,matches)
         matches=np.vstack((matches))
         self.hits[matches[:,0]] += 1
         self.time_since_update[matches[:,0]] = 0
         ############################################
+        # import ipdb; ipdb.set_trace()        
         for x,y in matches:
-            # import ipdb; ipdb.set_trace()
+            self.confidence[x]=detections.confidence[y]
             if self.state[x]==TrackState.Tentative and self.hits[x]>=self._n_init:
                 self.state[x]=TrackState.Confirmed
         
-        return self.mean_3D,self.covariance_3D,self.state
+        # import ipdb; ipdb.set_trace()
+        return self.mean_3D,self.covariance_3D,self.state, self.time_since_update,self.hits,self.confidence
 
     def mark_missed(self,i):
         """Mark this track as missed (no association at the current time step).

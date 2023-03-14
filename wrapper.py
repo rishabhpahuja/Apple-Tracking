@@ -6,8 +6,7 @@ import cv2
 import numpy as np
 import Utils as ut
 import argparse
-# import Segmentation as sg
-# import ipdb;ipdb.set_Trace()
+
 #Defining parameters
 def get_args():
     parser=argparse.ArgumentParser(description='Run DeepSORT in 3D')

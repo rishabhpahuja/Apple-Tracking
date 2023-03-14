@@ -30,7 +30,7 @@ def make_video_from_frames(path, Iframe=0, Fframe=100,REF=False):
         img=cv2.imread(file)
         img_array.append(img)
     
-    video=cv2.VideoWriter('Baseline.mp4',cv2.VideoWriter_fourcc(*'mp4v'),1,size, isColor=True)
+    video=cv2.VideoWriter('apple_tracker.mp4',cv2.VideoWriter_fourcc(*'mp4v'),1,size, isColor=True)
 
     if REF:
         ref=cv2.imread('AAA_4420.png')
@@ -38,7 +38,7 @@ def make_video_from_frames(path, Iframe=0, Fframe=100,REF=False):
     for image in img_array:
         
         if REF:
-            image=exposure.match_histograms(image, ref, channel_axis==2)
+            image=exposure.match_histograms(image, ref)
         
         video.write(image)
     
@@ -202,7 +202,7 @@ def crop_disparity_map(disparity_map, locations, map_type=0,display=True,save=Fa
         cv2.imwrite('Cropped_disparity_map.png',cropped_disparity_map)
     return cropped_disparity_map
 
-def find_contour_center(mask_cropped,image_,row,point_mask ,display=False):
+def find_contour_center(mask_cropped,image_,row,point_mask,boxes,points_2D,display=False):
 
     '''
     mask_cropped: The mask cropped along bounding box
@@ -211,6 +211,7 @@ def find_contour_center(mask_cropped,image_,row,point_mask ,display=False):
     point_mask: zeros mask saving location of each fruit
     '''
 
+    cx,cy=-1,-1
     contours, _ = cv2.findContours(mask_cropped, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if display:
@@ -219,25 +220,19 @@ def find_contour_center(mask_cropped,image_,row,point_mask ,display=False):
         cv2.destroyAllWindows()
     
     if len(contours)==0:
-        print('*'*50)
+
+        return image_,point_mask ,boxes,points_2D
     
     elif len(contours)==1:
         M=cv2.moments(contours[0])        
         # try:
-        cx=int(M['m10']/M['m00'])+int(row[0])
-        cy=int(M['m01']/M['m00'])+int(row[1])
-        cv2.circle(image_, (cx, cy), 10, (0, 0, 255), -1)
-        point_mask[cy,cx]=255
-            # cv2.circle(point_mask, (cx, cy), 10, (255, 255,255), -1) 
-        # except:
-        #     cv2.namedWindow('cropped',cv2.WINDOW_NORMAL)
-        #     mask_cropped=cv2.cvtColor(mask_cropped,cv2.COLOR_GRAY2BGR)
-        #     cv2.drawContours(mask_cropped,contours,-1,(255,0,0),10)
-        #     cv2.imshow('cropped', mask_cropped)
-        #     cv2.waitKey(0)
-        #     cv2.destroyAllWindows()
-            # import ipdb; ipdb.set_trace()
-        return image_,point_mask 
+        if M['m00']!=0:
+            cx=int(M['m10']/M['m00'])+int(row[0])
+            cy=int(M['m01']/M['m00'])+int(row[1])
+            cv2.circle(image_, (cx, cy), 10, (0, 0, 255), -1)
+            point_mask[cy,cx]=255
+            points_2D.append([cx,cy])
+            boxes.append(row)    
 
     elif len(contours)>1:
         max=0
@@ -250,9 +245,12 @@ def find_contour_center(mask_cropped,image_,row,point_mask ,display=False):
         cx=int(M['m10']/M['m00'])+int(row[0])
         cy=int(M['m01']/M['m00'])+int(row[1])
         cv2.circle(image_, (cx, cy), 10, (0, 0, 255), -1) 
-        point_mask[cy,cx]=255                   
+        point_mask[cy,cx]=255
+        points_2D.append([cx,cy])
+        boxes.append(row)                 
         # cv2.circle(point_mask, (cx, cy), 10, (255, 255,255), -1)
-    return image_,point_mask
+
+    return image_,point_mask,boxes, points_2D
 
 #Find bounding boxes
 def occlusion_score(bbox, mask):
@@ -274,7 +272,7 @@ def occlusion_score(bbox, mask):
 
     return score
 
-def find_center(detections,image,mask):
+def find_center(detections,image,mask, debug=False):
 
 
     '''
@@ -284,13 +282,29 @@ def find_center(detections,image,mask):
     '''
     point_mask=np.zeros((image.shape[0],image.shape[1]),np.uint8)    
     # import ipdb; ipdb.set_trace()      
+    boxes=[]
+    points_2D=[]
     for i,row in enumerate(detections):
-        image,point_mask=find_contour_center(mask[int(row[1]):int(row[1]+row[3]),int(row[0]):int(row[0]+row[2])],image,row,point_mask,display=False)
-        # cv2.rectangle(image,(int(row[0]),int(row[1])),(int(row[0]+row[2]),int(row[1]+row[3])),(255,255,0),4)
-    
-    return image, point_mask
+        # import ipdb ;ipdb.set_trace()
+        image,point_mask,boxes,points_2D=find_contour_center(mask[int(row[1]):int(row[3]),int(row[0]):int(row[2])],
+                                                            image,row,point_mask,boxes=boxes,points_2D=points_2D,display=False)
+    if debug:
+            cv2.rectangle(image,(int(row[0]),int(row[1])),(int(row[2]),int(row[3])),(255,255,0),4)
 
-def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=None,\
+            cv2.namedWindow('image',cv2.WINDOW_NORMAL)
+            cv2.namedWindow('cropped',cv2.WINDOW_NORMAL)
+            cv2.imshow('image',image)
+            cv2.imshow('cropped',mask[int(row[1]):int(row[3]),int(row[0]):int(row[2])])
+            cv2.waitKey()
+            cv2.destroyAllWindows()
+            # print(track)
+    
+    points_2D=np.concatenate((points_2D)).reshape((-1,2))
+    boxes=np.concatenate((boxes)).reshape((-1,4))
+    return image, point_mask,boxes,points_2D
+
+
+def obtain_3d_volume(disparity_map,left_image , points_2D,point_mask,fruit_location=None,only_fruit=None,\
                     single_point=False,save_file=False,frame_num=None):
 
     # disparity_map=cv2.imread(disparity_map,0)
@@ -346,6 +360,9 @@ def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=N
     cv2.stereoRectify(cameraMatrix1=Pr[0:3,0:3], distCoeffs1=0, cameraMatrix2=Pl[0:3,0:3], distCoeffs2=0, R=np.linalg.inv(Rr)@Rl, 
                             T=np.array([[-136.2942110803947],[0],[0]]),imageSize=(2048,1536),Q = rev_proj_matrix)
 
+    # cv2.stereoRectify(cameraMatrix1=Kr, distCoeffs1=Dr, cameraMatrix2=Kl, distCoeffs2=Dl, R=np.linalg.inv(Rr)@Rl, 
+    #                     T=np.array([[-136.2942110803947],[0],[0]]),imageSize=(2048,1536),Q = rev_proj_matrix)
+
     # Q = np.float32([[1, 0, 0, 0],
 	# 			[0, -1, 0, 0],
 	# 			[0, 0, 1142, 0],
@@ -356,23 +373,18 @@ def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=N
     REF: http://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/CameraInfo.html
         https://wiki.ros.org/image_pipeline/CameraInfo
     '''
-    points_3D = cv2.reprojectImageTo3D(disparity_map, rev_proj_matrix) #finding co-ordinates of point cloud from disparity image
-    # b=np.array([[59],[990],[disparity_map[59,990]],[1]]).astype(np.float32)
-    # import ipdb;ipdb.set_trace()
-    # a=rev_proj_matrix@b
-    # d=a[:3]/a[3,0]
-    # imgL=cv2.imread(left_image,1)
-
+    # points_3D = cv2.reprojectImageTo3D(disparity_map, rev_proj_matrix) #finding co-ordinates of point cloud from disparity image
     # import ipdb; ipdb.set_trace()
-    mask_map = disparity_map > disparity_map.min()   #condition to remove pixel with zero values
-    output_points = points_3D[mask_map]
+    # mask_map = disparity_map > disparity_map.min()   #condition to remove pixel with zero values
+    # output_points = points_3D[mask_map]
+    output_points = project_to_3d(disparity_map, rev_proj_matrix,points_2D)
 
-    print(output_points.shape) #[0] of output gives number of vertices
+    # print(output_points.shape) #[0] of output gives number of vertices
 
     if save_file:
         colors = cv2.cvtColor(left_image, cv2.COLOR_BGR2RGB)
-        output_colors = colors[mask_map].astype(int)     #saving colour of each point
-        file_name='default_'+str(frame_num)+'.ply'
+        output_colors = colors[points_2D[:,1],points_2D[:,0]].astype(int)     #saving colour of each point
+        file_name='/home/pahuja/Projects/default_'+str(frame_num)+'.ply'
         if only_fruit:
             file_name='only_fruit_85.ply'
             disparity_map=crop_disparity_map(disparity_map,locations=fruit_location,map_type=0 ,display=True)
@@ -380,6 +392,7 @@ def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=N
         elif single_point:
             file_name='single_point.ply'
             disparity_map=crop_disparity_map(disparity_map,locations=fruit_location,map_type=1 ,display=False)
+    
     # import ipdb; ipdb.set_trace()
         header = '''ply
         format ascii 1.0
@@ -395,18 +408,8 @@ def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=N
         property uint8 blue
         end_header
         '''
-        #writing ply file
-        # f.write(a)
-        # import ipdb; ipdb.set_trace()
 
         verts=np.hstack([output_points,output_colors])
-        # for i in tqdm(range(len(output_points))):
-        #     a = np.array2string(output_points[i,0]) + " " + \
-        #         np.array2string(output_points[i,1])+ " " + \
-        #         np.array2string(output_points[i,2])+ "  "+ \
-        #         np.array2string(output_colors[i,0]) + " " +\
-        #         np.array2string(output_colors[i,1])+ " " + \
-        #         np.array2string(output_colors[i,2]) + "\n"
 
         with open(file_name, 'wb') as f:     #opening file to make a ply file
 
@@ -414,8 +417,18 @@ def obtain_3d_volume(disparity_map,left_image , fruit_location=None,only_fruit=N
             np.savetxt(f, verts, fmt='%f %f %f %d %d %d ')
                 
         f.close()
-        # pcd=o3d.io.read_point_cloud('./test.ply')
     return output_points
+
+def project_to_3d(disparity,cam_mat,points_2D):
+    
+    # import ipdb; ipdb.set_trace()
+    # v = cam_mat * [points; y; double(D(x,y)); 1];
+    points_3D=cam_mat@np.hstack((points_2D,disparity[points_2D[:,1],points_2D[:,0]].reshape((-1,1)),np.ones((len(points_2D),1)))).T
+    points_3D=points_3D.T
+    points_3D=points_3D[:,:3]/points_3D[:,-1].reshape((-1,1))
+    
+    # XYZ(x,y,:) = v(1:3) ./ v(4);
+    return points_3D
 
 def display_inlier_outlier(cloud, ind):
     inlier_cloud = cloud.select_by_index(ind)
@@ -499,19 +512,30 @@ def image_shift(imgr_path,imgl_path, display=True, save= True):
         cv2.destroyAllWindows() 
 
     if save:
-        cv2.imwritimage,scalee('Shifted.jpeg',shifted)     
+        cv2.imwrite('Shifted.jpeg',shifted)     
 
-def draw_boxes(img, csv_file, display=False,save=True):
+def draw_boxes(img, csv_file=None, boxes=None,display=False,save=True,points_3d=None,frame_no=1, points_2d=None):
 
     # import ipdb;ipdb.set_trace()
-    img=cv2.imread(img,1)
-    with open(csv_file) as csvfile:
-        spamreader=csv.reader(csvfile)
-        for row in spamreader:
-            cv2.rectangle(img,(int(row[0]),int(row[1])),(int(row[2]),int(row[3])),(255,255,0),4)
+    cmap = plt.get_cmap('tab20b') #initialize color map
+    colors = [cmap(i)[:3] for i in np.linspace(0, 1, 20)] 
+    if isinstance(img, str):
+        img=cv2.imread(img,1)
     
+    if boxes is None:
+        with open(csv_file) as csvfile:
+            spamreader=csv.reader(csvfile)
+            for row in spamreader:
+                cv2.rectangle(img,(int(row[0]),int(row[1])),(int(row[2]),int(row[3])),(255,255,255),4)
+    else: 
+        for i,row in enumerate(boxes):
+            color = colors[i % len(colors)]  # draw bbox on screen
+            color = [i * 255 for i in color]
+            cv2.rectangle(img,(int(row[0]),int(row[1])),(int(row[2]),int(row[3])),color,4)
+            cv2.putText(img,str(round(points_3d[i,0],0))+'_'+str(round(points_3d[i,1],0))+'_'+str(round(points_3d[i,2],0))+'_',(int(row[0]), int(row[1]-11)),0, 0.8, color,2, lineType=cv2.LINE_AA)
+            # cv2.putText(img,str(round(points_2d[i,0],0))+'_'+str(round(points_2d[i,1],0)),(int(row[0]), int(row[1]-32)),0, 0.8, (255,255,0),2, lineType=cv2.LINE_AA)
     if save:
-        cv2.imwrite("Image_with_boxes.png",img)
+        cv2.imwrite('/home/pahuja/Projects/'+str(frame_no)+".jpeg",img)
     
     if display:
         cv2.namedWindow("Image",cv2.WINDOW_NORMAL)
@@ -519,6 +543,7 @@ def draw_boxes(img, csv_file, display=False,save=True):
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
+    return img
 
 def image_undistort(imgr_path, K,R,D,C, display=True, save= True):
 
@@ -566,36 +591,8 @@ if __name__=='__main__':
     # image=cv2.imread('cam1_image003893.png',1)
     # image=cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
     # segmentation(image,scale=0.4,display=True)
-    make_video_from_frames(path='./deep_sort/Tests/Baseline/*.png', Iframe=0, Fframe=36)
-    Kr=np.array([[1052.350202570253, 0.0, 1031.808590719438],
-                            [0.0, 1051.888280928595, 771.0661229952285],
-                            [0.0, 0.0, 1.0]]) #Intrinsic parameter to convert camera frame to image frame)
-    
-    Rr= np.array([[0.9996990506423458, 0.002517310775589418, 0.02440228045187234],\
-                    [-0.002557834410859948, 0.9999954009677927, 0.001629578592843086],\
-                    [-0.02439806606924718, -0.001691505164855578, 0.9997008918583387]])
-    
-    Dr= np.array([-0.03098864107712216, 0.04051128735759788, -0.001361885214239114, -0.0008816601680637922, 0.0]) #Distortion matrix
-    
-    Cr=np.array([[0],[0],[0]])
+    make_video_from_frames(path='/home/pahuja/Projects/Apple tracking/deep_sort_3D/Tests/Mahalanobis/*.png', Iframe=0, Fframe=100)
 
-    Pr= np.array([[1142.280571388607, 0.0, 988.5422821044922, -136.2942110803947], 
-                [0.0, 1142.280571388607, 782.6398086547852, 0.0],
-                [ 0.0, 0.0, 1.0, 0.0]])
-    
-    Kl= np.array([1052.382387969279, 0.0, 1058.58421357867, 
-                0.0, 1052.123571352367, 800.4517901498787, 
-                0.0, 0.0, 1.0]).reshape((3,3))
-
-    Rl=np.array([0.9996673945529461, 0.001496854974222017, 0.02574606169709769, 
-                -0.001454093723616705, 0.9999975323978124, -0.001679526638459951,
-                -0.02574851217386264, 0.001641530832029927, 0.9996671043389194]).reshape(3,3)
-    
-    Pl=[1142.280571388607, 0.0, 988.5422821044922, 0.0, 
-        0.0, 1142.280571388607, 782.6398086547852, 0.0, 
-        0.0, 0.0, 1.0, 0.0]
-
-    Dl=np.array([-0.02203560874783666, 0.02887488453134448, 0.000593652652803611, -0.00298638958591028, 0.0])
     # image_undistort('./Disparity/R0058.jpeg',K=Kr,R=Rr,D=Dr,C=Cr)
     # image_undistort('./Disparity/L0058.jpeg',K=Kl,R=Rl,D=Dl,C=Cr)
 

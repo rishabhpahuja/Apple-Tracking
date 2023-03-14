@@ -43,30 +43,40 @@ def min_cost_matching(
 
     """
     if track_indices is None:
-        track_indices = np.arange(len(detections.points_2D)-1)
+        track_indices = np.arange(len(tracks.mean_3D)-1)
     if detection_indices is None:
-        detection_indices = np.arange(len(detections.points_2D)-1)
+        detection_indices = np.arange(len(detections.points_3D)-1)
 
     if len(detection_indices) == 0 or len(track_indices) == 0:
         return [], track_indices, detection_indices  # Nothing to match.
 
     # import ipdb; ipdb.set_trace()
-    cost_matrix = distance_metric(
-        tracks, detections, track_indices)
+    # import ipdb; ipdb.set_trace()
+    cost_matrix = distance_metric(tracks, detections, track_indices,detection_indices)
     cost_matrix[cost_matrix > max_distance] = max_distance + 1e-5
     indices = linear_sum_assignment(cost_matrix) #Link the detection to tracker
     indices = np.asarray(indices) #Makes a 2D array with row at indices at row 0 and column indices at row 1
     indices = np.transpose(indices) #Convert it in the form of (row,column)
     matches, unmatched_tracks, unmatched_detections = [], [], []
+    # import ipdb; ipdb.set_trace()
     for col, detection_idx in enumerate(detection_indices):
         if col not in indices[:, 1]:
             unmatched_detections.append(detection_idx)
+    # import ipdb; ipdb.set_trace()
     for row, track_idx in enumerate(track_indices):
-        if row not in indices[:, 0]:
-            unmatched_tracks.append(track_idx)
+
+        try:
+            if row not in indices[:, 0]:
+                unmatched_tracks.append(track_idx)
+        except:
+            import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
     for row, col in indices:
-        track_idx = track_indices[row]
-        detection_idx = detection_indices[col]
+        try:
+            track_idx = track_indices[row]
+            detection_idx = detection_indices[col]
+        except:
+            import ipdb; ipdb.set_trace()
         if cost_matrix[row, col] > max_distance:
             unmatched_tracks.append(track_idx)
             unmatched_detections.append(detection_idx)
@@ -116,7 +126,6 @@ def matching_cascade(
 
     """
     if track_indices is None:
-        # import ipdb; ipdb.set_trace()
         if tracks.mean_3D is None: #To check it is the first frame
             track_indices=[]
         else:
@@ -136,6 +145,7 @@ def matching_cascade(
             k for k in track_indices
             if tracks.time_since_update[k] == 1 + level
         ]
+        # import ipdb; ipdb.set_trace()
         if len(track_indices_l) == 0:  # Nothing to match at this level
             continue
 
@@ -189,7 +199,7 @@ def gate_cost_matrix(
     gating_threshold = kalman_filter.chi2inv95[gating_dim]
     measurements = np.asarray(
         [detections[i].to_xyah() for i in detection_indices])
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
     for row, track_idx in enumerate(track_indices):
         print("Finding cost matrix")
         track = tracks[track_idx]

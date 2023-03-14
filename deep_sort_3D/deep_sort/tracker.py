@@ -36,7 +36,7 @@ class Tracker:
 
     """
 
-    def __init__(self, metric,max_age=75, n_init=1,v=np.array([0,0,20]),mean=np.array([0,0,0]),_st_weight_position=2):
+    def __init__(self, metric,max_age=75, n_init=2,v=np.array([0,0,20]),mean=np.array([0,0,0]),_st_weight_position=2):
         self.metric = metric
         # self.max_iou_distance = max_iou_distance
         self.max_age = max_age
@@ -51,6 +51,8 @@ class Tracker:
         self._confidence=np.array([0])
         self._st_weight_position=_st_weight_position
         self._state=np.array([1])
+        self._hits=np.array([0])
+        self._time_since_update=np.array([0])
 
     def predict(self):
         """Propagate track state distributions one time step forward.
@@ -58,7 +60,7 @@ class Tracker:
         This function should be called once every time step, before `update`.
         """
         # import ipdb; ipdb.set_trace()
-        self._mean_3D,self._covariance_3D=self.tracks.predict(self.kf)
+        self._mean_3D,self._covariance_3D,self._time_since_update=self.tracks.predict(self.kf)
         # import ipdb; ipdb.set_trace()
 
     def update(self, detections):
@@ -70,13 +72,14 @@ class Tracker:
 
         """
         # Run matching cascade.
+        # import ipdb;ipdb.set_trace()
         matches, unmatched_tracks, unmatched_detections = \
             self._match(detections)
 
         # import ipdb;ipdb.set_trace()
         # Update track set.
         if len(matches)!=0:
-            self._mean_3D,self._covariance_3D,self._state=self.tracks.update(self.kf, detections,matches)
+            self._mean_3D,self._covariance_3D,self._state,self._time_since_update, self._hits,self._confidence=self.tracks.update(self.kf, detections,matches)
 
         for track_idx in unmatched_tracks:
             self.tracks.mark_missed(track_idx)
@@ -86,7 +89,7 @@ class Tracker:
         # MATCHED_TRACKS=[self.tracks[i] for i in unmatched_tracks]
         # UNMACTHED_DETECTIONS=[detections[i] for i in unmatched_detections]
         # self.tracks = [t for t in self.tracks if not t.is_deleted()]
-        
+        # import ipdb;ipdb.set_trace()
         return matches
 
     def _match(self, detections):
@@ -95,10 +98,10 @@ class Tracker:
         detections: object of class detection
         '''
 
-        def gated_metric(tracks, dets, track_indices):
+        def gated_metric(tracks, dets, track_indices,detection_indices):
             # import ipdb; ipdb.set_trace()
             detection = dets.points_3D
-            cost_matrix = self.metric.distance(detection, tracks, track_indices)
+            cost_matrix = self.metric.distance(detection, tracks, track_indices,detection_indices)
 
             return cost_matrix
 
@@ -125,21 +128,24 @@ class Tracker:
         detection: object of class detection consisting of all the detections
         unmactched_detection: list consisting of indices of bbox of image space that are unmatched detections, starting from pos 1
         '''
-        
+        # import ipdb; ipdb.set_trace()
         mean, covariance = self.kf.initiate(detection.points_3D,unmatched_detections)
         #merging existing covaraince with new detection covariance
         # import ipdb; ipdb.set_trace()        
         self._covariance_3D=self.get_covariance(covariance)
         self._mean_3D=np.vstack((self._mean_3D,mean))
         self._mean_2D=np.vstack((self._mean_2D,detection.points_2D[unmatched_detections]))
+        self._time_since_update=np.concatenate((self._time_since_update,np.zeros(len(unmatched_detections))))
         self._confidence=np.concatenate((self._confidence,detection.confidence[unmatched_detections]),axis=0)
         self._next_id_=np.arange(len(self._confidence))
+        self._hits=np.concatenate((self._hits, np.zeros(len(unmatched_detections))))
         class_name = detection.get_class()
         self._state=np.concatenate((self._state,np.array([TrackState.Tentative]*len(unmatched_detections))),axis=0)
 
         self.tracks=Track(
             mean_2D=self._mean_2D, mean_3D=self._mean_3D,covariance_3D=self._covariance_3D, track_id=self._next_id_, n_init=self.n_init,
-             max_age=np.ones(len(self._confidence))*self.max_age,class_name=class_name,confidence=self._confidence,initialized=True, state=self._state)
+             max_age=np.ones(len(self._confidence))*self.max_age,class_name=class_name,confidence=self._confidence,initialized=True, state=self._state,
+             time_since_update=self._time_since_update,hits=self._hits)
 
     def get_covariance(self, covariance):
 

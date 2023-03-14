@@ -149,7 +149,7 @@ class NearestNeighborDistanceMetric(object):
         self.budget = budget
         self.samples = {}
 
-    def distance(self, detections, tracks,track_indices):
+    def distance(self, detections, tracks,track_indices,detection_indices):
         """Compute distance between features and targets.
 
         Parameters
@@ -167,11 +167,11 @@ class NearestNeighborDistanceMetric(object):
             `targets[i]` and `features[j]`.
 
         """
-        cost_matrix = np.zeros((len(tracks.mean_3D)-1, len(detections)-1))
+        cost_matrix = np.zeros((len(track_indices), len(detection_indices)))
         for row_num,i in enumerate(track_indices):
             # import ipdb; ipdb.set_trace()
             track=tracks.mean_3D[i]
             cov=tracks.covariance_3D[3*i:3*i+3,3*i:3*i+3]
-            cost_matrix[row_num, :] = self._metric(track, cov,detections[1:])
+            cost_matrix[row_num, :] = self._metric(track, cov,detections[detection_indices])
             # import ipdb;ipdb.set_trace()
         return cost_matrix

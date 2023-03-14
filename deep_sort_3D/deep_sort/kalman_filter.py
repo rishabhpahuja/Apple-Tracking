@@ -66,7 +66,7 @@ class KalmanFilter(object):
 
         """
         mean = measurement[indices]
-        covariance = np.eye(3*len(mean),3*len(mean),dtype=float)*self._std_weight_position*2
+        covariance = np.eye(3*len(mean),3*len(mean),dtype=float)*self._std_weight_position*3
     
         return mean, covariance
 
@@ -94,8 +94,8 @@ class KalmanFilter(object):
 
         # import ipdb;ipdb.set_trace()
 
-        motion_cov=np.zeros((len(mean),len(mean)),dtype=float)
-        motion_cov[:3,:3] = np.diag(np.square(std_pos))
+        motion_cov=np.eye(len(mean),len(mean),dtype=float)*3*self._std_weight_position
+        # motion_cov[:3,:3] = np.diag(np.square(std_pos))
         mean = mean+np.dot(motion_model.T, self.v)
         # import ipdb; ipdb.set_trace()
         covariance = np.linalg.multi_dot((
@@ -121,7 +121,7 @@ class KalmanFilter(object):
         # import ipdb; ipdb.set_trace()
         first_row=first_row.reshape((3,-1))
         first_column=first_column.reshape((-1,3))
-        rover_mat=np.eye(3,3,dtype=float)*self._std_weight_position*1.5
+        rover_mat=np.eye(3,3,dtype=float)*self._std_weight_position*3
         inn_mat=np.vstack((np.hstack((rover_mat,first_row)),
                             np.hstack((first_column,diag_matrix))))
                 

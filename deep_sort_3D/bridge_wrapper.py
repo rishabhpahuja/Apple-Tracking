@@ -52,8 +52,8 @@ class YOLOv8_SORT_3D:
     '''
     Class to Wrap ANY detector  of YOLO type with DeepSORT
     '''
-    def __init__(self, detector, segment,disparity,nn_budget:float=None, nms_max_overlap:float=1.0, base_coordinate=np.array([0,0,0]),vel=np.array([10,0,0]),
-                    _st_weight_position=10.0 ):
+    def __init__(self, detector, segment,disparity,nn_budget:float=None, nms_max_overlap:float=1.0, base_coordinate=np.array([0,0,0]),vel=np.array([12,0,0]),
+                    _st_weight_position=100 ):
         '''
         args: 
             detector: object of YOLO models or any model which gives you detections as [x1,y1,x2,y2,scores, class]
@@ -136,9 +136,13 @@ class YOLOv8_SORT_3D:
             points_3d=ut.obtain_3d_volume(point_disparity,frame_left,points_2D,point_mask,save_file=True, frame_num=frame_num)
 
             if frame_num!=1:
+                # import ipdb; ipdb.set_trace()
                 points_3d=self.rover_detec(self.base_cord)+points_3d #Shifting 3D cordinates from rover to world origin
+                # points_3d=points_3d
+                # print(self.base_cord)
             else: 
                 points_3d=self.base_cord+points_3d
+                # points_3d=points_3d
    
             names=np.array(["Apple"]*len(yolo_dets))
         
@@ -159,10 +163,11 @@ class YOLOv8_SORT_3D:
             scores=np.hstack((np.array([0]),scores))
             detections = Detection(yolo_dets, scores, names,  position_3D) # detection object for rover and all the apples
 
-            frame_left=ut.draw_boxes(img=frame_left,boxes=yolo_dets[1:],points_3d=position_3D[1:],frame_no=frame_num,save=True)
+            # frame_left=ut.draw_boxes(img=frame_left,boxes=yolo_dets[1:],points_3d=position_3D[1:],frame_no=frame_num,save=False)
             if frame_num!=1:
                 self.tracker.predict()  # Call the tracker except for frame 1 since there is not tracker is made at the end of frame 1
             
+            # import ipdb; ipdb.set_trace()
             matches=self.tracker.update(detections) #  update using Kalman Gain
 
             
@@ -171,27 +176,21 @@ class YOLOv8_SORT_3D:
             
             if len(matches)!=0:
                 matches=np.vstack((matches))
-            
+        
             for match in matches:  # update new findings AKA tracks                
-                
-                # if not self.tracker.tracks.is_confirmed(track) or self.tracker.tracks.time_since_update[track] > 1:
-                #     continue 
+                if self.tracker.tracks.is_confirmed([match[0]])==False:
+                    # import ipdb; ipdb.set_trace()
+                    continue 
                 bbox = detections.points_2D[match[1]]
                 class_name = 'Apple'
 
                 color = colors[int(self.tracker.tracks.track_id[match[0]]) % len(colors)]  # draw bbox on screen
                 color = [i * 255 for i in color]
                 text_color=(255,255,255)
-                # if track.time_since_update<2:
-                #     pass
-                # else:
-                #     color=(255,255,255)
-                #     text_color=(0,0,0)
-                # import ipdb; ipdb.set_trace()
-                # print(bbox)
+
                 cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
-                # cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(self.tracker.tracks.track_id[match[0]])))*30, int(bbox[1])), color, -1) #To make a solid rectangle box to write text on
-                # cv2.putText(frame_left, class_name + ":" + str(self.tracker.tracks.track_id[match[0]])+'-'+str(round(self.tracker.tracks.confidence[match[0]],2)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)
+                cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(self.tracker.tracks.track_id[match[0]])))*30, int(bbox[1])), color, -1) #To make a solid rectangle box to write text on
+                cv2.putText(frame_left, class_name + ":" + str(self.tracker.tracks.track_id[match[0]])+'-'+str(round(self.tracker.tracks.confidence[match[0]],2)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)
                 # cv2.putText(frame_left, class_name + " " + str(track.track_id)+':'+str(round(ut.occlusion_score(bbox,mask),3)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)  
                 cv2.putText(frame_left, "Frame_num:"+str(frame_num),(len(frame_left[0])-300,len(frame_left)-100),0, 1.2, (255,255,255),2, lineType=cv2.LINE_AA)  
                 if verbose == 2:
@@ -216,13 +215,13 @@ class YOLOv8_SORT_3D:
 
             if frame_num>9 and frame_num<100:
                 name=frame_save_dir_path+'/00'+str(frame_num)+'_.png'
-                print(name)
+                # print(name)
             elif frame_num>100:
                 name=frame_save_dir_path+'/0'+str(frame_num)+'_.png'
-                print(name)
+                # print(name)
             elif frame_num<10:
                 name=frame_save_dir_path+'/000'+str(frame_num)+'_.png'
-                print(name)
+                # print(name)
             cv2.imwrite(name,frame_left)
         cv2.destroyAllWindows()
 
@@ -232,5 +231,5 @@ class YOLOv8_SORT_3D:
         T=1
         M=np.array([[T,0,0],[0,T,0],[0,0,T]])
         noise= np.random.normal(0,1,3)
-        self.base_cord=pos.T + M@self.v #+ noise
+        self.base_cord=pos.T + M@self.v + noise
         return self.base_cord

@@ -74,9 +74,9 @@ class Segmentation:
 
     def mask_to_image(self, mask: np.ndarray):
         if mask.ndim == 2:
-            return Image.fromarray((mask * 255).astype(np.uint8))
+            return (mask * 255).astype(np.uint8)
         elif mask.ndim == 3:
-            return Image.fromarray((np.argmax(mask, axis=0) * 255).astype(np.uint8))
+            return (np.argmax(mask, axis=0) * 255).astype(np.uint8)
 
 
 
