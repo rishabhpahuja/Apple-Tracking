@@ -26,6 +26,7 @@ The entire pipeline can be activated by runninng `wrapper.py` by running the com
 8. **match**: Bool value whether to perform histogram equilization of the inputted images with a reference (Used in cases when the lighting onditions of images used to train segmentation model is very different from the inputted images)
 
 ## Results:
+
 ![Point Cloud Representation](pc.gif)
 
 ![Realtime Implementation](apple_tracker.gif)
