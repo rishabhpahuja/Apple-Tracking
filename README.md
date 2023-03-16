@@ -27,10 +27,10 @@ The entire pipeline can be activated by runninng `wrapper.py` by running the com
 
 ## Results:
 
-{% figure caption:"Realtime Apple Tracking" %}
-    ![Realtime Apple Tracking](apple_tracker.gif)
-{% endfigure %}
-
+<figure>
+  <img src="apple_tracker.gif" alt="Alt text">
+  <figcaption>Realtime Apple Tracking</figcaption>
+</figure>
 
 ![Point Cloud Representation](pc.gif "Point Cloud Representation")
 
