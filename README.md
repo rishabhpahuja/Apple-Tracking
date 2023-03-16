@@ -32,7 +32,7 @@ The entire pipeline can be activated by runninng `wrapper.py` by running the com
 {% endfigure %}
 
 
-![Point Cloud Representation](pc.gif)
+![Point Cloud Representation](pc.gif "Point Cloud Representation")
 
 
 
