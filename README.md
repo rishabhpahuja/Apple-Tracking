@@ -25,7 +25,7 @@ The entire pipeline can be activated by runninng `wrapper.py` by running the com
 
 ## Basline Results:
 
-![Realtime Implementation](apple_tracker.mp4)
+![Realtime Implementation](apple_tracker.gif)
 
 
 
