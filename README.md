@@ -8,6 +8,8 @@ It has the following main components:
 3. **Superglue:** Feature matching algorithm used in DeepSort
 4. **DeepSORT:** Multi-object trackign algorithm
 
+We started solving the problem using DeepSORT algorithm but we realised that we do not need so many components in our pipeline if we just track apples in world coordinate frame using **Extended Kalman Filter** approach. The Extended Kalman Filter effectively handles tracking during occlusion, and tracks objects in the world coordinate frame, ensuring that the coordinates of the objects being tracked remain consistent across frames allowing easy reassociation. Mahalanobis distance is used for making cost matrix to perform association using **Hungarian Algorithm**.
+
 The diagram below shows the entire pipeline of how these components are used for tracking apples:
 
 ![Pipelien Components](flowchart.png)
@@ -25,7 +27,8 @@ The entire pipeline can be activated by runninng `wrapper.py` by running the com
 
 ## Results:
 
-![Realtime Implementation](apple_tracker.gif)
+![Point Cloud Representation](apple_tracker.gif "Realtime Tracking") ![Point Cloud Representation](pc.gif "Point Cloud Representation")
+
 
 
 
