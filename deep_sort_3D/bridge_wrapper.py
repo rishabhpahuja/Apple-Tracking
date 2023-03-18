@@ -116,7 +116,8 @@ class YOLOv8_SORT_3D:
                 print('Video has ended or failed!')
                 break
             frame_num +=1
-
+            # frame_left=cv2.resize(frame_left,dsize=None,fx=0.6,fy=0.6,interpolation=cv2.INTER_LANCZOS4)
+            # frame_right=cv2.resize(frame_right,dsize=None,fx=0.6,fy=0.6,interpolation=cv2.INTER_LANCZOS4)
             if skip_frames and not frame_num % skip_frames: continue # skip every nth frame. When every frame is not important, you can use this to fasten the process
             if verbose >= 1:start_time = time.time()
 
@@ -125,13 +126,23 @@ class YOLOv8_SORT_3D:
                         
             ############################ Find 3D information ###########################################
             disparity=self.disparity.find_disparity(frame_left, frame_right)
+            #Downsample image
+            # time_s=time.time()
+            
             mask=self.segment.predict_img(cv2.cvtColor(frame_left,cv2.COLOR_BGR2RGB))
+            # time_e=time.time()
+            # print(time_e-time_s)
+            # cv2.namedWindow("frame",cv2.WINDOW_NORMAL)
+            # image_added=cv2.addWeighted(frame_left,1.0,cv2.cvtColor(mask,cv2.COLOR_BGR2RGB),0.5,0.0)
+            # cv2.imshow("frame",image_added)
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
             image, point_mask,yolo_dets,points_2D=ut.find_center(yolo_dets, frame_left, mask, debug=False)
-            # import ipdb; ipdb.set_trace()
             '''
             Image: Left frame showing fruit center and bounding boxes if debug=True        
             '''
             ######################### Generating disparity point mask #####################################
+            # import ipdb; ipdb.set_trace()
             point_disparity=np.where(point_mask==255,disparity,disparity*0)
             points_3d=ut.obtain_3d_volume(point_disparity,frame_left,points_2D,point_mask,save_file=True, frame_num=frame_num)
 
@@ -189,8 +200,8 @@ class YOLOv8_SORT_3D:
                 text_color=(255,255,255)
 
                 cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
-                cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(self.tracker.tracks.track_id[match[0]])))*30, int(bbox[1])), color, -1) #To make a solid rectangle box to write text on
-                cv2.putText(frame_left, class_name + ":" + str(self.tracker.tracks.track_id[match[0]])+'-'+str(round(self.tracker.tracks.confidence[match[0]],2)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)
+                cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(self.tracker.tracks.track_id[match[0]])))*15, int(bbox[1])), color, -1) #To make a solid rectangle box to write text on
+                cv2.putText(frame_left, class_name + ":" + str(self.tracker.tracks.track_id[match[0]])+'-'+str(round(self.tracker.tracks.confidence[match[0]],2)),(int(bbox[0]), int(bbox[1]-11)),0, 0.5, (text_color),2, lineType=cv2.LINE_AA)
                 # cv2.putText(frame_left, class_name + " " + str(track.track_id)+':'+str(round(ut.occlusion_score(bbox,mask),3)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)  
                 cv2.putText(frame_left, "Frame_num:"+str(frame_num),(len(frame_left[0])-300,len(frame_left)-100),0, 1.2, (255,255,255),2, lineType=cv2.LINE_AA)  
                 if verbose == 2:
