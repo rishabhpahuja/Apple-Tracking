@@ -1,5 +1,6 @@
 # vim: expandtab:ts=4:sw=4
 import numpy as np
+import matplotlib.pyplot as plt
 
 class TrackState:
     """
@@ -68,6 +69,7 @@ class Track:
         self.covariance_3D = covariance_3D
         self.track_id = track_id
         self.confidence=confidence
+        self.plot_array={i:[] for i in range(20)}
 
         if initialized:
             self.hits = hits
@@ -153,8 +155,16 @@ class Track:
         # import ipdb; ipdb.set_trace()        
         for x,y in matches:
             self.confidence[x]=detections.confidence[y]
+            if x in self.plot_array.keys():
+                self.plot_array[x].append(detections.points_3D[y][0])
             if self.state[x]==TrackState.Tentative and self.hits[x]>=self._n_init:
                 self.state[x]=TrackState.Confirmed
+        # for i in self.plot_array.keys():
+
+        #     if len(self.plot_array[i])!=0:
+        #         import ipdb; ipdb.set_trace()
+        #         plt.plot(len(self.plot_array[i]),self.plot_array[i],'o')
+        #         plt.imsave('plot.png')
         
         # import ipdb; ipdb.set_trace()
         return self.mean_3D,self.covariance_3D,self.state, self.time_since_update,self.hits,self.confidence
