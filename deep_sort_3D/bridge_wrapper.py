@@ -85,7 +85,7 @@ class YOLOv8_SORT_3D:
 
 
     def track_video(self,left_video:str, right_video:str,output:str, skip_frames:int=0, show_live:bool=True,
-                     count_objects:bool=False, verbose:int = 0,frame_save_dir_path='./Tests/3D_cost', debug=False):
+                     count_objects:bool=False, verbose:int = 0, debug=False, save_frames=True, frame_save_dir_path='./Tests/3D_cost'):
         '''
         Track any given webcam or video
         args: 
@@ -123,8 +123,8 @@ class YOLOv8_SORT_3D:
             frame_num +=1
 
             #Downsample image
-            frame_left=cv2.resize(frame_left,dsize=(800,640),interpolation=cv2.INTER_LANCZOS4)
-            frame_right=cv2.resize(frame_right,dsize=(800,640),interpolation=cv2.INTER_LANCZOS4)
+            # frame_left=cv2.resize(frame_left,dsize=(800,640),interpolation=cv2.INTER_LANCZOS4)
+            # frame_right=cv2.resize(frame_right,dsize=(800,640),interpolation=cv2.INTER_LANCZOS4)
 
             if skip_frames and not frame_num % skip_frames: continue # skip every nth frame. When every frame is not important, you can use this to fasten the process
             if verbose >= 1:start_time = time.time()
@@ -152,18 +152,17 @@ class YOLOv8_SORT_3D:
                 cv2.waitKey(0)
                 cv2.destroyAllWindows()
                 
-            # import ipdb; ipdb.set_trace()
             disparity=cv2.resize(disparity,dsize=(point_mask.shape[1],point_mask.shape[0]),interpolation=cv2.INTER_LANCZOS4)
 
-            points_3d=ut.obtain_3d_volume(disparity,frame_left.copy(),point_mask=point_mask,fruit_mask=seg_mask,points_2D=points_2D,save_file=True, frame_num=frame_num)
+            points_3d=ut.obtain_3d_volume(disparity,frame_left.copy(),point_mask=point_mask,fruit_mask=seg_mask,points_2D=points_2D,\
+                                          save_file=True, frame_num=frame_num)
 
-            if frame_num!=1:
+            if frame_num!=1: #Update rover coordinates only from 2nd frame
                 points_3d=self.rover_detec(self.base_cord)+points_3d #Shifting 3D cordinates from rover to world origin
 
             else: 
                 points_3d=self.base_cord+points_3d
-
-            # points_3d=self.rover_detec(frame_num-1)+points_3d   
+ 
             names=np.array(["Apple"]*len(yolo_dets))
         
             # import ipdb; ipdb.set_trace()
@@ -177,27 +176,23 @@ class YOLOv8_SORT_3D:
 
             ######################################### SORT_3D ##############################################
 
-            # import ipdb;ipdb.set_trace()
-            position_3D=np.vstack((self.base_cord,points_3d))  #Saving measured obejcts, rover and ables in one data structure
-            yolo_dets=np.vstack((np.array([0,0,0,0]),yolo_dets))
-            scores=np.hstack((np.array([0]),scores))
+            position_3D=np.vstack((self.base_cord,points_3d))  #Saving measured objects: rover and apples in one data structure
+            yolo_dets=np.vstack((np.array([0,0,0,0]),yolo_dets)) # Making 2d location of the apples of the similar structure, i.e. apple location start from pos=1
+            scores=np.hstack((np.array([0]),scores))            #Detection scores; Concatenting 0 at pos=0 so have similar structure
             detections = Detection(yolo_dets, scores, names,  position_3D) # detection object for rover and all the apples
 
-            # frame_left=ut.draw_boxes(img=frame_left,boxes=yolo_dets[1:],points_3d=position_3D[1:],frame_no=frame_num,save=False)
             if frame_num!=1:
-                self.tracker.predict()  # Call the tracker except for frame 1 since there is not tracker is made at the end of frame 1
-            
-            # import ipdb; ipdb.set_trace()
+                self.tracker.predict()  # Call the tracker except for frame 1 since tracker object of detections is made at the end of frame 1
+
             matches=self.tracker.update(detections) #  update using Kalman Gain
 
-            
+            # Visualizing           
             cmap = plt.get_cmap('tab20b') #initialize color map
             colors = [cmap(i)[:3] for i in np.linspace(0, 1, 20)]   
             
             if len(matches)!=0:
-                matches=np.vstack((matches))
-            # if frame_num<=11:
-            #     continue
+                matches=np.vstack((matches)) #Add matched tracks to the datastructure
+
             for match in matches:  # update new findings AKA tracks                
                 if self.tracker.tracks.is_confirmed([match[0]])==False:
                     # import ipdb; ipdb.set_trace()
@@ -234,17 +229,18 @@ class YOLOv8_SORT_3D:
                 cv2.namedWindow("Output Video",cv2.WINDOW_NORMAL)
                 cv2.imshow("Output Video", result)
                 if cv2.waitKey(1) & 0xFF == ord('q'): break
-
-            if frame_num>9 and frame_num<100:
-                name=frame_save_dir_path+'/00'+str(frame_num)+'_.png'
-                # print(name)
-            elif frame_num>100:
-                name=frame_save_dir_path+'/0'+str(frame_num)+'_.png'
-                # print(name)
-            elif frame_num<10:
-                name=frame_save_dir_path+'/000'+str(frame_num)+'_.png'
-                # print(name)
-            cv2.imwrite(name,frame_left)
+            
+            if save_frames:
+                if frame_num>9 and frame_num<100:
+                    name=frame_save_dir_path+'/00'+str(frame_num)+'_.png'
+                    # print(name)
+                elif frame_num>100:
+                    name=frame_save_dir_path+'/0'+str(frame_num)+'_.png'
+                    # print(name)
+                elif frame_num<10:
+                    name=frame_save_dir_path+'/000'+str(frame_num)+'_.png'
+                print(name)
+                cv2.imwrite(name,frame_left)
         cv2.destroyAllWindows()
 
 

@@ -127,7 +127,6 @@ class Track:
 
         """
         self.mean_3D, self.covariance_3D = kf.predict(self.mean_3D.flatten(), self.covariance_3D)
-        # import ipdb; ipdb.set_trace()
         # self.age += 1
         self.time_since_update += 1
 
