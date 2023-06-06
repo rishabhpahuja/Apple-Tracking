@@ -1,6 +1,3 @@
-'''
-A Moduele which binds Yolov7 repo with Deepsort with modifications
-'''
 import sys
 import os
 sys.path.append('/home/pahuja/Projects/Apple tracking')
@@ -18,7 +15,7 @@ if len(physical_devices) > 0:
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-
+from tqdm import tqdm
 from tensorflow.compat.v1 import ConfigProto # DeepSORT official implementation uses tf1.x so we have to do some modifications to avoid errors
 
 # deep sort imports
@@ -30,6 +27,7 @@ from deep_sort.tracker import Tracker
 from tracking_helpers import read_class_names, create_box_encoder
 from detection_helpers import *
 import Utils as ut
+import csv
 
 
  # load configuration for object detector
@@ -52,8 +50,8 @@ class YOLOv8_SORT_3D:
     '''
     Class to Wrap ANY detector  of YOLO type with DeepSORT
     '''
-    def __init__(self, detector, segment,disparity,nn_budget:float=None, nms_max_overlap:float=1.0, base_coordinate=np.array([0,0,0]),vel=np.array([12,0,0]),
-                    _st_weight_position=100 ):
+    def __init__(self, detector, segment,disparity,rover_coor_path,nn_budget:float=None, nms_max_overlap:float=1.0, base_coordinate=np.array([0,0,0]),vel=np.array([12,0,0]),
+                    _st_weight_position=300 ):
         '''
         args: 
             detector: object of YOLO models or any model which gives you detections as [x1,y1,x2,y2,scores, class]
@@ -79,9 +77,15 @@ class YOLOv8_SORT_3D:
         self.base_cord=base_coordinate
         self.v=vel
 
+        #Loading rover coordinates
+        self.rover_coor=np.loadtxt(rover_coor_path,delimiter=",",dtype=float)
+        self.rover_coor=(self.rover_coor[0]-self.rover_coor)*1000 #Taking starting point of rover as reference and converting them 
+        self.rover_coor[:,[0,1]]=self.rover_coor[:,[1,0]]
+        self.rover_coor[:,0]= self.rover_coor[:,0]*-1
 
-    def track_video(self,left_video:str, right_video:str,output:str, skip_frames:int=0, show_live:bool=False,
-                     count_objects:bool=False, verbose:int = 0,frame_save_dir_path='./Tests/3D_cost'):
+
+    def track_video(self,left_video:str, right_video:str,output:str, skip_frames:int=0, show_live:bool=True,
+                     count_objects:bool=False, verbose:int = 0,frame_save_dir_path='./Tests/3D_cost', debug=False):
         '''
         Track any given webcam or video
         args: 
@@ -92,6 +96,7 @@ class YOLOv8_SORT_3D:
             count_objects: count objects being tracked on screen
             verbose: print details on the screen allowed values 0,1,2
             frame_save_dir_path: Path to save the frames of the inputted video wrt left camera
+            debug: To display the calculated apple centers, segmented apples and bounding boxes
         '''
         try: # begin video capture
             vid_left = cv2.VideoCapture(int(left_video))
@@ -116,45 +121,49 @@ class YOLOv8_SORT_3D:
                 print('Video has ended or failed!')
                 break
             frame_num +=1
-            # frame_left=cv2.resize(frame_left,dsize=None,fx=0.6,fy=0.6,interpolation=cv2.INTER_LANCZOS4)
-            # frame_right=cv2.resize(frame_right,dsize=None,fx=0.6,fy=0.6,interpolation=cv2.INTER_LANCZOS4)
+
+            #Downsample image
+            frame_left=cv2.resize(frame_left,dsize=(800,640),interpolation=cv2.INTER_LANCZOS4)
+            frame_right=cv2.resize(frame_right,dsize=(800,640),interpolation=cv2.INTER_LANCZOS4)
+
             if skip_frames and not frame_num % skip_frames: continue # skip every nth frame. When every frame is not important, you can use this to fasten the process
             if verbose >= 1:start_time = time.time()
 
             ############################  Detection Model #############################################
-            yolo_dets,scores,_=self.detector.pred(frame_left,debug=False)       
+            yolo_dets,scores,_=self.detector.pred(frame_left.copy(),debug=False)       
                         
             ############################ Find 3D information ###########################################
-            disparity=self.disparity.find_disparity(frame_left, frame_right)
-            #Downsample image
-            # time_s=time.time()
-            
-            mask=self.segment.predict_img(cv2.cvtColor(frame_left,cv2.COLOR_BGR2RGB))
-            # time_e=time.time()
-            # print(time_e-time_s)
-            # cv2.namedWindow("frame",cv2.WINDOW_NORMAL)
-            # image_added=cv2.addWeighted(frame_left,1.0,cv2.cvtColor(mask,cv2.COLOR_BGR2RGB),0.5,0.0)
-            # cv2.imshow("frame",image_added)
-            # cv2.waitKey(0)
-            # cv2.destroyAllWindows()
-            image, point_mask,yolo_dets,points_2D=ut.find_center(yolo_dets, frame_left, mask, debug=False)
+            disparity=self.disparity.find_disparity(frame_left, frame_right)           
+            seg_mask=self.segment.predict_img(cv2.cvtColor(frame_left.copy(),cv2.COLOR_BGR2RGB))
+
+            image, point_mask,yolo_dets,points_2D=ut.find_center(yolo_dets, frame_left.copy(), seg_mask, debug=debug)
             '''
             Image: Left frame showing fruit center and bounding boxes if debug=True        
             '''
-            ######################### Generating disparity point mask #####################################
+            if debug:
+                cv2.namedWindow("Fruit center & Bounding Box",cv2.WINDOW_NORMAL)
+                cv2.namedWindow("Only Fruit",cv2.WINDOW_NORMAL)
+
+                image_added=cv2.addWeighted(frame_left,1.0,cv2.cvtColor(seg_mask,cv2.COLOR_BGR2RGB),0.5,0.0)
+
+                cv2.imshow("Only Fruit",image_added)
+                cv2.imshow("Fruit center & Bounding Box",image)
+
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                
             # import ipdb; ipdb.set_trace()
-            point_disparity=np.where(point_mask==255,disparity,disparity*0)
-            points_3d=ut.obtain_3d_volume(point_disparity,frame_left,points_2D,point_mask,save_file=True, frame_num=frame_num)
+            disparity=cv2.resize(disparity,dsize=(point_mask.shape[1],point_mask.shape[0]),interpolation=cv2.INTER_LANCZOS4)
+
+            points_3d=ut.obtain_3d_volume(disparity,frame_left.copy(),point_mask=point_mask,fruit_mask=seg_mask,points_2D=points_2D,save_file=True, frame_num=frame_num)
 
             if frame_num!=1:
-                # import ipdb; ipdb.set_trace()
                 points_3d=self.rover_detec(self.base_cord)+points_3d #Shifting 3D cordinates from rover to world origin
-                # points_3d=points_3d
-                # print(self.base_cord)
+
             else: 
                 points_3d=self.base_cord+points_3d
-                # points_3d=points_3d
-   
+
+            # points_3d=self.rover_detec(frame_num-1)+points_3d   
             names=np.array(["Apple"]*len(yolo_dets))
         
             # import ipdb; ipdb.set_trace()
@@ -187,7 +196,8 @@ class YOLOv8_SORT_3D:
             
             if len(matches)!=0:
                 matches=np.vstack((matches))
-        
+            # if frame_num<=11:
+            #     continue
             for match in matches:  # update new findings AKA tracks                
                 if self.tracker.tracks.is_confirmed([match[0]])==False:
                     # import ipdb; ipdb.set_trace()
@@ -200,10 +210,11 @@ class YOLOv8_SORT_3D:
                 text_color=(255,255,255)
 
                 cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
-                cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(self.tracker.tracks.track_id[match[0]])))*15, int(bbox[1])), color, -1) #To make a solid rectangle box to write text on
-                cv2.putText(frame_left, class_name + ":" + str(self.tracker.tracks.track_id[match[0]])+'-'+str(round(self.tracker.tracks.confidence[match[0]],2)),(int(bbox[0]), int(bbox[1]-11)),0, 0.5, (text_color),2, lineType=cv2.LINE_AA)
+                cv2.rectangle(frame_left, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(self.tracker.tracks.track_id[match[0]])))*10, int(bbox[1])), color, -1) #To make a solid rectangle box to write text on
+                cv2.putText(frame_left, class_name + ":" + str(self.tracker.tracks.track_id[match[0]]),(int(bbox[0]), int(bbox[1]-11)),0, 0.5, (text_color),2, lineType=cv2.LINE_AA)
                 # cv2.putText(frame_left, class_name + " " + str(track.track_id)+':'+str(round(ut.occlusion_score(bbox,mask),3)),(int(bbox[0]), int(bbox[1]-11)),0, 0.8, (text_color),2, lineType=cv2.LINE_AA)  
-                cv2.putText(frame_left, "Frame_num:"+str(frame_num),(len(frame_left[0])-300,len(frame_left)-100),0, 1.2, (255,255,255),2, lineType=cv2.LINE_AA)  
+                cv2.putText(frame_left, "Frame_num:"+str(frame_num),(len(frame_left[0])-100,len(frame_left)-50),0, 0.5, (255,255,255),2, lineType=cv2.LINE_AA)
+            
                 if verbose == 2:
                     print("Tracker ID: {}, Class: {},  BBox Coords (xmin, ymin, xmax, ymax): {}".format(str(self.tracker.tracks.track_id[match[0]]), class_name, (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))))
                     
@@ -244,3 +255,7 @@ class YOLOv8_SORT_3D:
         noise= np.random.normal(0,1,3)
         self.base_cord=pos.T + M@self.v + noise
         return self.base_cord
+
+    # def rover_detec(self,frame):
+
+    #     return self.rover_coor[frame]
