@@ -88,14 +88,14 @@ class KalmanFilter(object):
             Returns the mean vector and covariance matrix of the predicted
             state. Unobserved velocities are initialized to 0 mean.
 
-        """
-        std_pos = [self._std_weight_position,self._std_weight_position,self._std_weight_position]  
+        """  
         motion_model, jac_mat =self.init_matrix(len(mean))
 
         # import ipdb;ipdb.set_trace()
 
         motion_cov=np.eye(len(mean),len(mean),dtype=float)*3*self._std_weight_position
         # motion_cov[:3,:3] = np.diag(np.square(std_pos))
+        # import ipdb;ipdb.set_trace()
         mean = mean+np.dot(motion_model.T, self.v)
         # import ipdb; ipdb.set_trace()
         covariance = np.linalg.multi_dot((
@@ -109,22 +109,20 @@ class KalmanFilter(object):
             number of tracks to be updated
 
         '''
-
         diag_matrix=np.eye(3*nos-3,3*nos-3,dtype=float)
         first_row=np.zeros((3,3*nos-3),dtype=float).flatten()
         first_column=np.zeros((3*nos-3,3),dtype=float).flatten()
-        for i in range(3*(3*nos-3)):
-            if i%4==0 or i%4==1:
-                first_row[i]=self._std_weight_position
-                first_column[i]=self._std_weight_position
+        # for i in range(3*(3*nos-3)):
+        #     if i%4==0 or i%4==1:
+        #         first_row[i]=self._std_weight_position
+        #         first_column[i]=self._std_weight_position
             
         # import ipdb; ipdb.set_trace()
         first_row=first_row.reshape((3,-1))
         first_column=first_column.reshape((-1,3))
         rover_mat=np.eye(3,3,dtype=float)*self._std_weight_position*3
         inn_mat=np.vstack((np.hstack((rover_mat,first_row)),
-                            np.hstack((first_column,diag_matrix))))
-                
+                            np.hstack((first_column,diag_matrix))))      
         return inn_mat
     
     def project(self, mean, covariance,matches,h_matrix):
@@ -171,7 +169,7 @@ class KalmanFilter(object):
             Returns the measurement-corrected state distribution.
 
         """
-        # import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()S
         matches=np.vstack((np.array([0,0]),matches))
         h_matrix=np.eye(len(mean.flatten()),len(mean.flatten()),dtype=float)
         projected_mean, projected_cov = self.project(mean, covariance,matches,h_matrix) #predicted state from H*x_n_cap, (H*P_n_cap*H.T+Q)
@@ -193,7 +191,6 @@ class KalmanFilter(object):
             covariance[3*x:3*x+3,3*x:3*x+3] = covariance[3*x:3*x+3,3*x:3*x+3] - np.linalg.multi_dot((
                 kalman_gain, projected_cov[3*x:3*x+3,3*x:3*x+3], kalman_gain.T))
         # import ipdb; ipdb.set_trace()
-
         return mean, covariance
 
     def gating_distance(self, mean, covariance, measurements,
@@ -239,32 +236,3 @@ class KalmanFilter(object):
             overwrite_b=True)
         squared_maha = np.sum(z * z, axis=0) #shape: (10,1), means squred maha distance of one track with all detections
         return squared_maha
-
-#%%
-# import numpy as np
-# P=np.array([[10,0,0,6,0,0],
-#             [0,10,0,0,6,0],
-#             [0,0,10,0,0,6],
-#             [6,0,0,5,0,0],
-#             [0,6,0,0,5,0],
-#             [0,0,6,0,0,5]] )
-# G=np.eye(6,6)
-# Q=np.array([[10,0,0,0,0,0],
-#             [0,10,0,0,0,0],
-#             [0,0,10,0,0,0],
-#             [0,0,0,0,0,0],
-#             [0,0,0,0,0,0],
-#             [0,0,0,0,0,0]] )
-# H=G
-# P_=G*P*G.T+Q
-
-# R=np.array([[10,0,0,0,0,0],
-#             [0,10,0,0,0,0],
-#             [0,0,10,0,0,0],
-#             [4,0,0,5,0,0],
-#             [0,4,0,0,5,0],
-#             [0,0,4,0,0,5]] )
-# K_=P_[3:6,3:6]*H[3:6,3:6]*(H[3:6,3:6]*P_[3:6,3:6]*H[3:6,3:6].T+R[3:6,3:6])
-# K=P_*H*(H*P_*H.T+R)
-# print(P_,'\n',K_,'\n',K)
-# %%

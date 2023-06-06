@@ -86,10 +86,7 @@ class Tracker:
 
         if len(unmatched_detections)!=0:
             self._initiate_track(detections,unmatched_detections)
-        # MATCHED_TRACKS=[self.tracks[i] for i in unmatched_tracks]
-        # UNMACTHED_DETECTIONS=[detections[i] for i in unmatched_detections]
-        # self.tracks = [t for t in self.tracks if not t.is_deleted()]
-        # import ipdb;ipdb.set_trace()
+
         return matches
 
     def _match(self, detections):
@@ -105,18 +102,6 @@ class Tracker:
 
             return cost_matrix
 
-        # Split track set into confirmed and unconfirmed tracks.
-        # import ipdb;ipdb.set_trace()
-
-        
-        # confirmed_tracks = [
-        #     i for i in range(len(self.tracks.state)) if self.tracks.is_confirmed(i)]
-        # unconfirmed_tracks = [
-        #     i for i in range(len(self.tracks.state)) if not self.tracks.is_confirmed(i)] #Unmatched tracks from previous frame
-        # import ipdb; ipdb.set_trace()
-
-        # Associate confirmed tracks using appearance features.
-        # import ipdb; ipdb.set_trace()
         matches, unmatched_tracks, unmatched_detections = linear_assignment.matching_cascade(
                 gated_metric, self.metric.matching_threshold, self.max_age,
                 self.tracks, detections)
@@ -124,14 +109,12 @@ class Tracker:
         return matches, unmatched_tracks, unmatched_detections
 
     def _initiate_track(self, detection, unmatched_detections):
+
         '''
         detection: object of class detection consisting of all the detections
         unmactched_detection: list consisting of indices of bbox of image space that are unmatched detections, starting from pos 1
         '''
-        # import ipdb; ipdb.set_trace()
-        mean, covariance = self.kf.initiate(detection.points_3D,unmatched_detections)
-        #merging existing covaraince with new detection covariance
-        # import ipdb; ipdb.set_trace()        
+        mean, covariance = self.kf.initiate(detection.points_3D,unmatched_detections)        
         self._covariance_3D=self.get_covariance(covariance)
         self._mean_3D=np.vstack((self._mean_3D,mean))
         self._mean_2D=np.vstack((self._mean_2D,detection.points_2D[unmatched_detections]))
@@ -151,11 +134,6 @@ class Tracker:
 
         first_row=np.zeros((len(self._covariance_3D),len(covariance[0]))).flatten()
         first_column=np.zeros((len(covariance),len(self._covariance_3D[0]))).flatten()
-
-        for i in range(len(first_row)):
-            if i%4==0 or i%4==1:
-                first_row[i]=self._st_weight_position
-                first_column[i]=self._st_weight_position
         
         first_row=first_row.reshape((len(self._covariance_3D),-1))
         first_column=first_column.reshape((-1,len(self._covariance_3D[0])))

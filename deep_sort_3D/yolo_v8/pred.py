@@ -5,20 +5,23 @@ import numpy as np
 
 class V8:
 
-    def __init__(self,model_type=None,model_path=None):
+    def __init__(self,model_type=None,model_path=None,conf=0.10, iou=0.15):
 
         if model_path is None:
-            self.model = YOLO("./yolo_v8/yolov8n.pt")  # load an official model
+            # self.model = YOLO("./yolo_v8/yolov8n.pt")  # load an official model
             self.model = YOLO("./yolo_v8/runs/detect/train2/weights/best.pt")  # load a custom model
         
         else:
-            self.model=YOLO(model_type)
+            # self.model=YOLO(model_type)
             self.model=YOLO(model_path)
+        
+        self.conf=conf
+        self.iou=iou
 
-    def pred(self, image, conf=0.15, iou=0.2, debug=False, display=False):
+    def pred(self, image, debug=False, display=False):
 
         # Predict with the model
-        results = self.model(image,conf=conf,iou=iou)  # predict on an image
+        results = self.model(image,conf=self.conf,iou=self.iou)  # predict on an image
         boxes = np.asarray(results[0].cpu().numpy().boxes.xyxy,np.uint16)
         scores=results[0].boxes.conf.cpu().numpy()
         # import ipdb; ipdb.set_trace()

@@ -168,8 +168,8 @@ class NearestNeighborDistanceMetric(object):
 
         """
         cost_matrix = np.zeros((len(track_indices), len(detection_indices)))
+        # import ipdb; ipdb.set_trace()
         for row_num,i in enumerate(track_indices):
-            # import ipdb; ipdb.set_trace()
             track=tracks.mean_3D[i]
             cov=tracks.covariance_3D[3*i:3*i+3,3*i:3*i+3]
             cost_matrix[row_num, :] = self._metric(track, cov,detections[detection_indices])
