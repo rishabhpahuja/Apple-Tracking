@@ -11,6 +11,8 @@ from tqdm import tqdm
 # import open3d as od
 import csv
 import open3d as o3d
+from sklearn.cluster import OPTICS
+from scipy.optimize import least_squares
 
 from Disparity import demo
 # import ipdb;ipdb.set_trace()
@@ -22,24 +24,24 @@ def make_video_from_frames(path, Iframe=0, Fframe=100,REF=False):
 
     files=sorted(glob.glob(path))[Iframe:Fframe]
     #files=sorted(glob.glob(path))
-    # import ipdb;ipdb.set_trace()
     h,w,c=cv2.imread(files[0]).shape
     size=(w,h)
+
+
+    if REF:
+        ref=cv2.imread('L0001.jpeg')
 
     for i,file in enumerate(files):
         img=cv2.imread(file)
         img_array.append(img)
-    
-    video=cv2.VideoWriter('apple_tracker.mp4',cv2.VideoWriter_fourcc(*'mp4v'),1,size, isColor=True)
-
-    if REF:
-        ref=cv2.imread('AAA_4420.png')
-
+    # import ipdb; ipdb.set_trace()
+    video=cv2.VideoWriter('apples_right_sync.mp4',cv2.VideoWriter_fourcc(*'mp4v'),1,size, isColor=True)
     for image in img_array:
         
         if REF:
             image=exposure.match_histograms(image, ref)
-        
+            image=np.asarray(image,np.uint8)
+
         video.write(image)
     
     video.release()
@@ -206,9 +208,16 @@ def find_contour_center(mask_cropped,image_,row,point_mask,boxes,points_2D,displ
 
     '''
     mask_cropped: The mask cropped along bounding box
+        type: ndarray
+
     image_: Left stereo image
+        type: ndarray
+
     row: The coordinates of one bounding box
+        type: ndarray
+
     point_mask: zeros mask saving location of each fruit
+        type: ndarray
     '''
 
     cx,cy=-1,-1
@@ -229,13 +238,15 @@ def find_contour_center(mask_cropped,image_,row,point_mask,boxes,points_2D,displ
         if M['m00']!=0:
             cx=int(M['m10']/M['m00'])+int(row[0])
             cy=int(M['m01']/M['m00'])+int(row[1])
-            cv2.circle(image_, (cx, cy), 10, (0, 0, 255), -1)
+            cv2.circle(image_, (cx, cy), 4, (0, 0, 255), -1)
+            cv2.rectangle(image_,(int(row[0]),int(row[1])),(int(row[2]),int(row[3])),(255,255,0),4)
             point_mask[cy,cx]=255
             points_2D.append([cx,cy])
             boxes.append(row)    
 
     elif len(contours)>1:
         max=0
+        c=contours[0]
         for contour in contours:
             k=cv2.contourArea(contour) 
             if max<k:
@@ -244,7 +255,8 @@ def find_contour_center(mask_cropped,image_,row,point_mask,boxes,points_2D,displ
         M=cv2.moments(c)
         cx=int(M['m10']/M['m00'])+int(row[0])
         cy=int(M['m01']/M['m00'])+int(row[1])
-        cv2.circle(image_, (cx, cy), 10, (0, 0, 255), -1) 
+        cv2.circle(image_, (cx, cy), 4, (0, 0, 255), -1) 
+        cv2.rectangle(image_,(int(row[0]),int(row[1])),(int(row[2]),int(row[3])),(255,255,0),4)
         point_mask[cy,cx]=255
         points_2D.append([cx,cy])
         boxes.append(row)                 
@@ -274,11 +286,20 @@ def occlusion_score(bbox, mask):
 
 def find_center(detections,image,mask, debug=False):
 
-
     '''
-    csv_file: file consisting of bounding box location of left stereo image
-    image: numpy, left stereo image
+    detections: array of detected bounding boxes [[x1,y1,x2,y2],...n]
+        type: ndarray
+    
+    image: left frame
+        type: ndarray
+
     mask: segmentation mask of left stereo image
+        type: ndarray
+
+    debug: flag variable to draw bounding box only around segmented apples
+
+    NOTE: The yolo detector and Unet segmentation might separate out different number of apples. This function makes sure to return
+        only those bounidng boxes which have a contour
     '''
     point_mask=np.zeros((image.shape[0],image.shape[1]),np.uint8)    
     # import ipdb; ipdb.set_trace()      
@@ -287,24 +308,15 @@ def find_center(detections,image,mask, debug=False):
     for i,row in enumerate(detections):
         # import ipdb ;ipdb.set_trace()
         image,point_mask,boxes,points_2D=find_contour_center(mask[int(row[1]):int(row[3]),int(row[0]):int(row[2])],
-                                                            image,row,point_mask,boxes=boxes,points_2D=points_2D,display=False)
-    if debug:
-            cv2.rectangle(image,(int(row[0]),int(row[1])),(int(row[2]),int(row[3])),(255,255,0),4)
+                                                            image,row,point_mask,boxes=boxes,points_2D=points_2D,display=False)       
 
-            cv2.namedWindow('image',cv2.WINDOW_NORMAL)
-            cv2.namedWindow('cropped',cv2.WINDOW_NORMAL)
-            cv2.imshow('image',image)
-            cv2.imshow('cropped',mask[int(row[1]):int(row[3]),int(row[0]):int(row[2])])
-            cv2.waitKey()
-            cv2.destroyAllWindows()
-            # print(track)
-    
     points_2D=np.concatenate((points_2D)).reshape((-1,2))
     boxes=np.concatenate((boxes)).reshape((-1,4))
+
     return image, point_mask,boxes,points_2D
 
 
-def obtain_3d_volume(disparity_map,left_image , points_2D,point_mask,fruit_location=None,only_fruit=None,\
+def obtain_3d_volume(disparity_map,left_image , points_2D,only_fruit=True,point_mask=None,fruit_mask=None,\
                     single_point=False,save_file=False,frame_num=None):
 
     # disparity_map=cv2.imread(disparity_map,0)
@@ -360,13 +372,6 @@ def obtain_3d_volume(disparity_map,left_image , points_2D,point_mask,fruit_locat
     cv2.stereoRectify(cameraMatrix1=Pr[0:3,0:3], distCoeffs1=0, cameraMatrix2=Pl[0:3,0:3], distCoeffs2=0, R=np.linalg.inv(Rr)@Rl, 
                             T=np.array([[-136.2942110803947],[0],[0]]),imageSize=(2048,1536),Q = rev_proj_matrix)
 
-    # cv2.stereoRectify(cameraMatrix1=Kr, distCoeffs1=Dr, cameraMatrix2=Kl, distCoeffs2=Dl, R=np.linalg.inv(Rr)@Rl, 
-    #                     T=np.array([[-136.2942110803947],[0],[0]]),imageSize=(2048,1536),Q = rev_proj_matrix)
-
-    # Q = np.float32([[1, 0, 0, 0],
-	# 			[0, -1, 0, 0],
-	# 			[0, 0, 1142, 0],
-	# 			[0, 0, 0, 1]])
     '''
     R matrix is used to convert one camera frame to a central frame.
     
@@ -382,23 +387,30 @@ def obtain_3d_volume(disparity_map,left_image , points_2D,point_mask,fruit_locat
     # print(output_points.shape) #[0] of output gives number of vertices
 
     if save_file:
-        colors = cv2.cvtColor(left_image, cv2.COLOR_BGR2RGB)
-        output_colors = colors[points_2D[:,1],points_2D[:,0]].astype(int)     #saving colour of each point
         file_name='/home/pahuja/Projects/default_'+str(frame_num)+'.ply'
         if only_fruit:
-            file_name='only_fruit_85.ply'
-            disparity_map=crop_disparity_map(disparity_map,locations=fruit_location,map_type=0 ,display=True)
-        
+            file_name='/home/pahuja/Projects/only_fruit_'+str(frame_num)+'.ply'
+            output_points_save = cv2.reprojectImageTo3D(disparity_map, rev_proj_matrix)
+            # import ipdb; ipdb.set_trace()
+            disparity_map=cv2.bitwise_and(disparity_map.astype(np.uint8),fruit_mask)
+
         elif single_point:
-            file_name='single_point.ply'
-            disparity_map=crop_disparity_map(disparity_map,locations=fruit_location,map_type=1 ,display=False)
-    
-    # import ipdb; ipdb.set_trace()
+            file_name='/home/pahuja/Projects/single_point_'+str(frame_num)+'.ply'
+            output_points_save = project_to_3d(disparity_map, rev_proj_matrix,points_2D)
+            disparity_map=cv2.bitwise_and(disparity_map,point_mask)
+        
+        mask_map = disparity_map > disparity_map.min()
+        if output_points_save.ndim>2:
+            output_points_save=output_points_save[mask_map]  
+
+        colors = cv2.cvtColor(left_image, cv2.COLOR_BGR2RGB)
+        output_colors = colors[mask_map].astype(int)
+        verts=np.hstack([output_points_save,output_colors])
+        
         header = '''ply
         format ascii 1.0
         comment - Made for Apple Tracking
-        comment - This file represents a cube's corner vertices
-        element vertex ''' + str(output_points.shape[0])+\
+        element vertex ''' + str(output_points_save.shape[0])+\
         '''
         property float32 x
         property float32 y
@@ -409,8 +421,6 @@ def obtain_3d_volume(disparity_map,left_image , points_2D,point_mask,fruit_locat
         end_header
         '''
 
-        verts=np.hstack([output_points,output_colors])
-
         with open(file_name, 'wb') as f:     #opening file to make a ply file
 
             f.write((header % dict(vert_num=len(verts))).encode('utf-8'))
@@ -418,6 +428,146 @@ def obtain_3d_volume(disparity_map,left_image , points_2D,point_mask,fruit_locat
                 
         f.close()
     return output_points
+
+def sphere_residuals(center, x):
+    # print(center)
+    # print(x)
+    return (x[:,0] - center[0])**2 + (x[:,1] - center[1])**2 + (x[:,2] - center[2])**2 - center[3]**2
+
+def least_sq_sphere_fitting(points):
+
+    '''
+    args:
+        points: ndarray
+    
+    Ref: https://wuyang-li1990.medium.com/point-cloud-sphere-fitting-cc619c0f7ced
+
+    return:
+        center: ndarray
+                (x,y,z)
+        radius: float
+
+    Theory:
+        Solve the equation f=Ac where c has the sphere center
+    '''
+    approx_center=points.mean(axis=0)
+    radius_guess = np.mean(np.linalg.norm(points - approx_center, axis=1))
+    approx_center=np.hstack([approx_center,radius_guess])
+    # import ipdb; ipdb.set_trace()
+    A=np.zeros((len(points),4))
+    A[:,:3]=points
+    result= least_squares(sphere_residuals, approx_center, args=(points,), method='trf')
+    return result.x[:3], result.x[3]
+
+def create_sphere_points(radius, x0, y0, z0, n=72):
+    sp = np.linspace(0, 2.0*np.pi, num=n)
+    nx = sp.shape[0]
+    u = np.repeat(sp, nx//5)
+    v = np.tile(sp, nx//5)
+    x = x0 + np.cos(u)*np.sin(v)*radius
+    y = y0 + np.sin(u)*np.sin(v)*radius
+    z = z0 + np.cos(v)*radius
+    return x, y, z
+
+
+def obtain_3d_volume_temp(disparity_map,left_image,f,i):
+
+    # disparity_map=cv2.imread(disparity_map,0)
+
+    '''
+    map_type=0 means point cloud of only fruit will be generated
+    map_type=1 means fruit shall be represented by a single point
+    
+    K: Intrinsic camera matrix for raw distorted images. Projects 3D points in the camera coordinate frame to 2D pixel coordinates
+    using focal lengths and principal point
+    K=[[fx 0 cs]
+        [0 fy cy]
+        [0  0  1]]
+
+    R: Rectification matrix (stereo cameras only). A rotation matrix aligning camera coordinate system to the ideal stereo image 
+    plane so that epipolar lines in both stereo images are parallel.
+
+    P: By convention, this matrix specifies the intrinsic (camera) matrix of the processed (rectified) image. That is, the left 3x3 portion
+    is the normal camera intrinsic matrix for the rectified image. It projects 3D points in the camera coordinate frame to 2D pixel
+    coordinates using the focal lengths (fx', fy') and principal point (cx', cy') - these may differ from the values in K.
+        [fx'  0  cx' Tx]
+    P = [ 0  fy' cy' Ty]
+        [ 0   0   1   0]
+    the fourth column [Tx Ty 0]' is related to the position of the optical center of the second camera in the first camera's frame
+    Tx = -fx' * B, where B is the baseline between the cameras
+    '''
+
+        
+    Kr=np.array([[1052.350202570253, 0.0, 1031.808590719438],
+                            [0.0, 1051.888280928595, 771.0661229952285],
+                            [0.0, 0.0, 1.0]]) #Intrinsic parameter to convert camera frame to image frame)
+    
+    Rr= np.array([[0.9996990506423458, 0.002517310775589418, 0.02440228045187234],\
+                    [-0.002557834410859948, 0.9999954009677927, 0.001629578592843086],\
+                    [-0.02439806606924718, -0.001691505164855578, 0.9997008918583387]]) 
+    
+    Dr= np.array([-0.03098864107712216, 0.04051128735759788, -0.001361885214239114, -0.0008816601680637922, 0.0]) #Distortion matrix
+    Pr=np.array([1142.280571388607, 0.0, 988.5422821044922, 0.0, 0.0, 1142.280571388607, 782.6398086547852, 0.0, 0.0, 0.0, 1.0, 0.0]).reshape((3,4))
+    
+    Kl= np.array([1052.382387969279, 0.0, 1058.58421357867, 
+                0.0, 1052.123571352367, 800.4517901498787, 
+                0.0, 0.0, 1.0]).reshape((3,3))
+
+    Rl=np.array([0.9996673945529461, 0.001496854974222017, 0.02574606169709769, 
+                -0.001454093723616705, 0.9999975323978124, -0.001679526638459951,
+                -0.02574851217386264, 0.001641530832029927, 0.9996671043389194]).reshape(3,3)
+
+    Dl=np.array([-0.02203560874783666, 0.02887488453134448, 0.000593652652803611, -0.00298638958591028, 0.0])
+    Pl=np.array([1142.280571388607, 0.0, 988.5422821044922, -136.2942110803947, 0.0, 1142.280571388607, 782.6398086547852, 0.0, 0.0, 0.0, 1.0, 0.0]).reshape(3,4)
+    
+    rev_proj_matrix = np.zeros((4,4))
+    
+    cv2.stereoRectify(cameraMatrix1=Pr[0:3,0:3], distCoeffs1=0, cameraMatrix2=Pl[0:3,0:3], distCoeffs2=0, R=np.linalg.inv(Rr)@Rl, 
+                            T=np.array([[-136.2942110803947],[0],[0]]),imageSize=(2048,1536),Q = rev_proj_matrix)
+
+    '''
+    R matrix is used to convert one camera frame to a central frame.
+    
+    REF: http://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/CameraInfo.html
+        https://wiki.ros.org/image_pipeline/CameraInfo
+    '''
+    points_3D = cv2.reprojectImageTo3D(disparity_map, rev_proj_matrix) #finding co-ordinates of point cloud from disparity image
+    mask_map = disparity_map > disparity_map.min()   #condition to remove pixel with zero values
+    output_points = points_3D[mask_map]
+
+    colors = cv2.cvtColor(left_image, cv2.COLOR_BGR2RGB)
+    # output_colors = colors[points_2D[:,1],points_2D[:,0]].astype(int)     #saving colour of each point
+    output_colors = colors[mask_map].astype(int)
+    file_name='/home/pahuja/Projects/default_'+str(1)+'.ply'
+
+    if True:
+        center, radius=least_sq_sphere_fitting(output_points)
+        # import ipdb; ipdb.set_trace()
+        x,y,z=create_sphere_points(radius,center[0],center[1],center[2])
+        output_points=np.vstack([output_points,np.vstack([x,y,z]).T])
+        output_colors=np.vstack([output_colors,np.zeros((len(x),3))])
+
+    verts=np.hstack([output_points,output_colors])
+    header = '''ply
+    format ascii 1.0
+    comment - Made for Apple Tracking
+    comment - This file represents a cube's corner vertices
+    element vertex ''' + str(verts.shape[0])+\
+    '''
+    property float32 x
+    property float32 y
+    property float32 z
+    property uint8 red
+    property uint8 green
+    property uint8 blue
+    end_header
+    '''
+         #opening file to make a ply file
+
+    if i==0:
+        f.write((header % dict(vert_num=len(verts))).encode('utf-8'))
+    np.savetxt(f, verts, fmt='%f %f %f %d %d %d ')
+            
 
 def project_to_3d(disparity,cam_mat,points_2D):
     
@@ -591,7 +741,7 @@ if __name__=='__main__':
     # image=cv2.imread('cam1_image003893.png',1)
     # image=cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
     # segmentation(image,scale=0.4,display=True)
-    make_video_from_frames(path='/home/pahuja/Projects/Apple tracking/deep_sort_3D/Tests/Mahalanobis/*.png', Iframe=0, Fframe=100)
+    make_video_from_frames(path='/home/pahuja/Projects/Apple tracking/deep_sort_3D/Tests/Mahalanobis/*.png', Iframe=0, Fframe=100,REF=True)
 
     # image_undistort('./Disparity/R0058.jpeg',K=Kr,R=Rr,D=Dr,C=Cr)
     # image_undistort('./Disparity/L0058.jpeg',K=Kl,R=Rl,D=Dl,C=Cr)
