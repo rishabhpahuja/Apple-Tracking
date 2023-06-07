@@ -6,8 +6,8 @@ from predict import Segmentation
 from demo import Disparity
 
 
-left_video_path='../results/apples_left.mp4'
-right_video_path='../results/apples_right.mp4'
+left_video_path='../Videos/apples_left.mp4'
+right_video_path='../Videos/apples_right.mp4'
 
 #Declare detector
 detector= V8(conf=0.1, iou=0.15) #change values of confidence and iou to tune the detector
