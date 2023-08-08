@@ -13,7 +13,7 @@ The pipeline consists of the following major components:
 4. **Object Tracking:** It is performed using Mahalabis distance and Kalman Filter. The scripts to perform tracking are stored in [./deep_sort_3D](./deep_sort_3D) and [./Utils](./Utils.py). Please do not change the name of Utils.py to utils.py as it had to be done to prevent overloading.
 
 ## Running the script
-The following [yaml file](./apple_tracking.yml) can be used to create the conda environment using the command `conda env create -n ENVNAME --file apple_tracking.yml`. The input to the algorithm is left and right stereo camera videos. Videos can be downloaded from XXXXXXX and should be placed at `./Videos`. The entire script can be run by using the command `python3 run_tracker.py` from the folder deep_sort_3D.
+The following [yaml file](./apple_tracking.yml) can be used to create the conda environment using the command `conda env create -n ENVNAME --file apple_tracking.yml`. The input to the algorithm is left and right stereo camera videos. Videos can be downloaded and should be placed at `./Videos`. The entire script can be run by using the command `python3 run_tracker.py` from the folder deep_sort_3D.
 
 If the same system is being used, activate conda environment `aaples` using command `conda activate apples`. Following this download weights of all the models mentioned above and put them at their respective location. After the videos have been added at the respective location, execute the above mentioned command.
 
