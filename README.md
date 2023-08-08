@@ -28,7 +28,11 @@ The scripts saves three kinds of outputs:
 
 1. Every frame, indicating the bounding box and fruit id. The path for the same can be given while making the object YOLOv8_SORT_3D in line 21 of `run_tracker.py` by passing the path to the variable `frame_save_dir_path`. 
 2. The tracking video: The path can be given on line 23 of `run_tracker.py` by passing the path to `output` variable.
-3. Point cloud: Provisions have been given in the code to store point cloud of just the fruit without the background or to store the point for each fruit. Boolean variables, `only_fruit` and `single_point` can be made true accordingly in the function `obtain_3d_volume` of [Utils.py](./Utils.py). Making both false shall save the entire point cloud. Path for saving the poitn cloud can be given to the variable `file name` of the same function. 
+3. Point cloud: Provisions have been given in the code to store point cloud of just the fruit without the background or to store the point for each fruit. Boolean variables, `only_fruit` and `single_point` can be made true accordingly in the function `obtain_3d_volume` of [Utils.py](./Utils.py). Making both false shall save the entire point cloud. Path for saving the poitn cloud can be given to the variable `file name` of the same function.
+
+## Sample Outputs
+![Point Cloud](pc.gif)
+![Tracker](apple_tracker.gif)
 
 ## Future work
 
