@@ -386,16 +386,17 @@ def obtain_3d_volume(disparity_map,left_image , points_2D,only_fruit=True,point_
 
     # print(output_points.shape) #[0] of output gives number of vertices
 
+    # import ipdb; ipdb.set_trace()
     if save_file:
-        file_name='/home/pahuja/Projects/default_'+str(frame_num)+'.ply'
+        file_name='../point_clouds/default_'+str(frame_num)+'.ply'
         if only_fruit:
-            file_name='/home/pahuja/Projects/only_fruit_'+str(frame_num)+'.ply'
+            file_name='../point_clouds/only_fruit_'+str(frame_num)+'.ply'
             output_points_save = cv2.reprojectImageTo3D(disparity_map, rev_proj_matrix)
             # import ipdb; ipdb.set_trace()
             disparity_map=cv2.bitwise_and(disparity_map.astype(np.uint8),fruit_mask)
 
         elif single_point:
-            file_name='/home/pahuja/Projects/single_point_'+str(frame_num)+'.ply'
+            file_name='../point_clouds/single_point_'+str(frame_num)+'.ply'
             output_points_save = project_to_3d(disparity_map, rev_proj_matrix,points_2D)
             disparity_map=cv2.bitwise_and(disparity_map,point_mask)
         
