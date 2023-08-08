@@ -2,6 +2,8 @@
 
 This branch consists of the apple tracking pipeline for the apple harvesting project. The diagram below shows the process flow and the entire pipeline can be understood in detail from the [document](./docs/Report.pdf)
 
+Kindly note that the dataset is not opensource and we have not provided dataset for the same reason
+
 ![Pipeline Components](pipeline.png)
 
 The pipeline consists of the following major components:
@@ -11,16 +13,14 @@ The pipeline consists of the following major components:
 4. **Object Tracking:** It is performed using Mahalabis distance and Kalman Filter. The scripts to perform tracking are stored in [./deep_sort_3D](./deep_sort_3D) and [./Utils](./Utils.py). Please do not change the name of Utils.py to utils.py as it had to be done to prevent overloading.
 
 ## Running the script
-The following [yaml file](./apple_tracking.yml) can be used to create the conda environment using the command `conda env create -n ENVNAME --file apple_tracking.yml`. The input to the algorithm is left and right stereo camera videos. Videos can be downloaded from [this link](https://drive.google.com/file/d/1IBIvf8zmRcegE7JVpd93acpcQ8UwD3mI/view?usp=sharing) and should be placed at `./Videos`. The entire script can be run by using the command `python3 run_tracker.py` from the folder deep_sort_3D.
+The following [yaml file](./apple_tracking.yml) can be used to create the conda environment using the command `conda env create -n ENVNAME --file apple_tracking.yml`. The input to the algorithm is left and right stereo camera videos. Videos can be downloaded from XXXXXXX and should be placed at `./Videos`. The entire script can be run by using the command `python3 run_tracker.py` from the folder deep_sort_3D.
 
 If the same system is being used, activate conda environment `aaples` using command `conda activate apples`. Following this download weights of all the models mentioned above and put them at their respective location. After the videos have been added at the respective location, execute the above mentioned command.
 
 ## Understanding dataset
 
-The segmentation and detection dataset can be found at the [link](https://drive.google.com/drive/folders/1i_6DE68TGnajEhaPC8Q_9szrNDHlj7uK?usp=sharing). 
 The detection dataset contains left and right stereo camera frames, however, all the frames are not labelled. Only the left camera frames are labelled and the frames labelled are seen inside detections 2. Also, there is a stark difference in lighting between the segmentation and detection dataset. To have a consistent dataset, histogram equilization was used, the function for which can be seen in [Utils.py](./Utils.py) with name `match_hist()`. The orignal dataset for detection is also present in the folder.
 
-There is also a [rosbag file](https://drive.google.com/file/d/1RYs63_lZkLn7WU8qkNku_MXHmAPPsB9i/view?usp=sharing) from which all the images, camera parameters can be extracted. 
 
 ## Saving output
 
