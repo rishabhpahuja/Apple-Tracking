@@ -1,22 +1,22 @@
 import sys
 import os
-sys.path.append('/home/pahuja/Projects/Apple tracking')
-sys.path.append('/home/pahuja/Projects/Apple tracking/Disparity')
-sys.path.append('/home/pahuja/Projects/Apple tracking/Segmentation')
+sys.path.append('../')
+sys.path.append('../Disparity')
+sys.path.append('../Segmentation')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # comment out below line to enable tensorflow logging outputs
 import time
-import tensorflow as tf
+# import tensorflow as tf
 
-physical_devices = tf.config.experimental.list_physical_devices('GPU')
-if len(physical_devices) > 0:
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
-    tf.config.experimental.set_memory_growth(physical_devices[1], True)
+# physical_devices = tf.config.experimental.list_physical_devices('GPU')
+# if len(physical_devices) > 0:
+#     tf.config.experimental.set_memory_growth(physical_devices[0], True)
+#     tf.config.experimental.set_memory_growth(physical_devices[1], True)
     
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from tensorflow.compat.v1 import ConfigProto # DeepSORT official implementation uses tf1.x so we have to do some modifications to avoid errors
+# from tensorflow.compat.v1 import ConfigProto # DeepSORT official implementation uses tf1.x so we have to do some modifications to avoid errors
 
 # deep sort imports
 from deep_sort import preprocessing, nn_matching
@@ -24,15 +24,16 @@ from deep_sort.detection import Detection
 from deep_sort.tracker import Tracker
 
 # import from helpers
-from tracking_helpers import read_class_names, create_box_encoder
-from detection_helpers import *
+# from tracking_helpers import read_class_names, create_box_encoder
+# from detection_helpers import *
+# import ipdb; ipdb.set_trace()
 import Utils as ut
 import csv
 
 
  # load configuration for object detector
-config = ConfigProto()
-config.gpu_options.allow_growth = True
+# config = ConfigProto()
+# config.gpu_options.allow_growth = True
 
 chi2inv95 = {
     1: 3.8415,
@@ -76,13 +77,6 @@ class YOLOv8_SORT_3D:
         #Initialize rover
         self.base_cord=base_coordinate
         self.v=vel
-
-        #Loading rover coordinates
-        self.rover_coor=np.loadtxt(rover_coor_path,delimiter=",",dtype=float)
-        self.rover_coor=(self.rover_coor[0]-self.rover_coor)*1000 #Taking starting point of rover as reference and converting them 
-        self.rover_coor[:,[0,1]]=self.rover_coor[:,[1,0]]
-        self.rover_coor[:,0]= self.rover_coor[:,0]*-1
-
 
     def track_video(self,left_video:str, right_video:str,output:str, skip_frames:int=0, show_live:bool=True,
                      count_objects:bool=False, verbose:int = 0, debug=False, save_frames=True, frame_save_dir_path='./Tests/3D_cost'):

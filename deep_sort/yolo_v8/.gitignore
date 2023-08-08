@@ -1,9 +1,0 @@
-*.jpeg
-*.yaml
-*.csv
-*.jpg
-__pycache__
-runs
-*.pt
-datasets
-

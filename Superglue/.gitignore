@@ -1,9 +1,0 @@
-# Compiled source #
-global_registration_sg.pth
-*.jpeg
-Misc superglue
-__pycache__
-results
-environment.yml
-__init__.py
-__pycache__

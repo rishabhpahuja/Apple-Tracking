@@ -1,6 +1,5 @@
 import sys
 import os
-# sys.path.append(os.getcwd()+'/Disparity')
 import ipdb
 import argparse
 import glob
@@ -11,7 +10,6 @@ from PIL import Image
 from matplotlib import pyplot as plt
 import cv2
 
-# import ipdb; ipdb.set_trace()
 from core.raft_stereo import RAFTStereo
 from core.utils.utils import InputPadder
 
@@ -26,9 +24,8 @@ class Disparity:
         
         #Defining the model
         self.model = torch.nn.DataParallel(RAFTStereo(self.args), device_ids=[0])
-        # self.model=RAFTStereo(self.args)
         self.model.load_state_dict(torch.load(self.args.restore_ckpt))
-        os.chdir('../deep_sort')
+        os.chdir('../deep_sort_3D')
         self.model = self.model.module
         self.model.to(self.device)
         self.model.eval()
@@ -47,7 +44,7 @@ class Disparity:
 
         with torch.no_grad():
 
-            os.chdir('../')
+            # os.chdir('../')
             
             if self.resize:
                 image1,size = self.load_image(imgl)
@@ -86,8 +83,8 @@ class Disparity:
             parser.add_argument('--restore_ckpt',default=model_path ,help="restore checkpoint")
         parser.add_argument('--save_numpy', action='store_true', help='save output as numpy arrays')
         parser.add_argument('--output_directory', help="directory to save output", default="./test")
-        parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
-        parser.add_argument('--valid_iters', type=int, default=7, help='number of flow-field updates during forward pass')
+        parser.add_argument('--mixed_precision', action='store_false', help='use mixed precision')
+        parser.add_argument('--valid_iters', type=int, default=15, help='number of flow-field updates during forward pass')
 
         # Architecture choices
         parser.add_argument('--hidden_dims', nargs='+', type=int, default=[128]*3, help="hidden state and context dimensions")
